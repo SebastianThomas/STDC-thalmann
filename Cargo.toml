@@ -1,10 +1,10 @@
 [package]
 name = "thalmann"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-num = { version = "0.4.3", features = ["libm"] }
+num = { version = "0.4.3", default-features = false, features = ["libm"] }
 
 [features]
 default = ["thalmann"]

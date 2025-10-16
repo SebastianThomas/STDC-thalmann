@@ -1,4 +1,5 @@
 use core::{f32::consts::LN_2, time::Duration};
+use num::Float;
 
 use crate::{
     depth_utils::get_depth_idx,

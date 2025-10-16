@@ -1,3 +1,5 @@
+use num::Float;
+
 use crate::pressure_unit::{Pa, Pressure};
 use crate::setup::DINC;
 
