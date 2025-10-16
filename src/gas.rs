@@ -32,7 +32,7 @@ impl GasMix<f32> {
         self.h2
     }
 
-    pub fn n2(&self) -> f32 {
+    pub const fn n2(&self) -> f32 {
         1.0 - (self.o2 + self.he)
     }
 }

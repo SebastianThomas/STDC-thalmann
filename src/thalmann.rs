@@ -121,10 +121,17 @@ pub fn calc_deco_schedule<const NUM_TISSUES: usize, const NUM_STOPS: usize>(
         [Stop::new(msw::new(0.0), Duration::from_millis(0)); NUM_STOPS];
 
     for i in 0..NUM_STOPS {
-        stops[NUM_STOPS - i - 1] = Stop::new(get_depth(i).to_msw(), Duration::from_millis(0));
+        stops[stop_idx_in_stops(NUM_STOPS, i)] = Stop::new(get_depth(i).to_msw(), Duration::from_millis(0));
     }
     while let Some(stop_depth) = first_stop_depth(&loading, m_values) {
         let depth_idx = get_depth_idx(stop_depth);
+        if depth_idx > NUM_STOPS {
+            return Err("Not enough space to store stops for this dive.");
+        }
+        let depth_idx = stop_idx_in_stops(NUM_STOPS, depth_idx);
+        if !stops[depth_idx].duration().is_zero() {
+            return Err("Attempting to override / repeat stop.");
+        }
         assert!(stop_depth == m_values[depth_idx].depth);
         let stop_duration =
             compute_stop_time(&loading, tissues, breathing_gas, m_values, stop_depth);
@@ -138,6 +145,9 @@ pub fn calc_deco_schedule<const NUM_TISSUES: usize, const NUM_STOPS: usize>(
         );
         stops[depth_idx] = Stop::new(stop_depth, stop_duration);
     }
-
     Ok(StopSchedule::new(stops))
+}
+
+const fn stop_idx_in_stops(num_stops: usize, i: usize) -> usize {
+    return num_stops - 1 - i;
 }
