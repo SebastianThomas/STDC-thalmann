@@ -1,11 +1,12 @@
 use core::time::Duration;
 
 use crate::{
+    depth_utils::get_ascent_time,
     gas,
     pressure_unit::{msw, Pa, Pressure},
 };
 
-use num;
+use num::Float;
 
 #[derive(Debug, Clone)]
 pub struct DiveMeasurement {
@@ -15,7 +16,7 @@ pub struct DiveMeasurement {
 }
 
 #[derive(Debug, Clone)]
-pub struct DiveProfile<F: num::Float, const G: usize, const M: usize> {
+pub struct DiveProfile<F: Float, const G: usize, const M: usize> {
     pub dive_id: usize,
     pub max_depth: F,
     pub gases: [gas::GasMix<F>; G],
@@ -47,13 +48,47 @@ impl Stop {
 
 #[derive(Debug, Clone)]
 pub struct StopSchedule<const NUM_STOPS: usize> {
-    pub stops: [Stop; NUM_STOPS],
-    pub tts: Duration,
+    stops: [Stop; NUM_STOPS],
 }
 
 impl<const NUM_STOPS: usize> StopSchedule<NUM_STOPS> {
     pub fn new(stops: [Stop; NUM_STOPS]) -> Self {
-        let tts: Duration = stops.iter().map(|s| s.duration()).sum();
-        StopSchedule { stops, tts }
+        StopSchedule { stops }
+    }
+
+    pub fn first_stop(&self) -> Option<&Stop> {
+        self.stops.iter().find(|stop| !stop.duration.is_zero())
+    }
+
+    pub fn get_deco_tts(&self, max_deco_ascent_rate_per_meter: &Duration) -> Duration {
+        return match self.first_stop() {
+            Some(first_stop) => {
+                let stops_time: Duration = self.stops.iter().map(|s| s.duration()).sum();
+                let stops_ascent_time: Duration =
+                    get_ascent_time(first_stop.depth(), max_deco_ascent_rate_per_meter);
+                stops_time + stops_ascent_time
+            }
+            None => Duration::ZERO,
+        };
+    }
+
+    pub fn get_tt_first_stop_ascent_now<P: Pressure>(
+        &self,
+        current_depth: P,
+        max_ascent_rate_per_meter: &Duration,
+    ) -> Result<Duration, &'static str> {
+        let first_stop = self.first_stop();
+        if first_stop.is_none() {
+            return Ok(Duration::ZERO);
+        }
+        let first_stop = first_stop.unwrap().depth();
+        let current_depth = current_depth.to_msw();
+        if current_depth < first_stop {
+            return Err(
+                "First stop must be still outstanding to get time to deco. Otherwise, use 0",
+            );
+        }
+        let diff = current_depth - first_stop;
+        return Ok(get_ascent_time(diff, max_ascent_rate_per_meter));
     }
 }
