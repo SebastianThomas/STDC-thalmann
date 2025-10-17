@@ -74,7 +74,7 @@ pub fn format_f32<const C: char, const BEFORE_COMMA: usize, const AFTER_COMMA: u
     }
 
     // Pad fractional part (AFTER_COMMA digits, fill with C)
-    let mut frac_chars = [C; AFTER_COMMA];
+    let mut frac_chars: [char; AFTER_COMMA] = ['0'; AFTER_COMMA];
     {
         let mut temp = frac_part;
         let mut idx = AFTER_COMMA;
