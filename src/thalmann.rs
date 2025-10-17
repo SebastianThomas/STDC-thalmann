@@ -117,9 +117,9 @@ pub fn calc_deco_schedule<const NUM_STOPS: usize>(
     calc_deco_schedule_intern(loading, &TISSUES, breathing_gas, &MVALUES_HE9_040)
 }
 
-pub fn calc_deco_schedule_intern<const NUM_TISSUES: usize, const NUM_STOPS: usize>(
-    loading: &TissuesLoading<NUM_TISSUES, Pa>,
-    tissues: &[Tissue; NUM_TISSUES],
+pub fn calc_deco_schedule_intern<const NUM_TS: usize, const NUM_STOPS: usize>(
+    loading: &TissuesLoading<NUM_TS, Pa>,
+    tissues: &[Tissue; NUM_TS],
     breathing_gas: &GasMix<f32>,
     m_values: &MVALUES,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
