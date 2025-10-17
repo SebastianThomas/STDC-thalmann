@@ -69,36 +69,36 @@ macro_rules! pressure_unit {
         }
 
         /// Arithmetic
-        impl Add for $name {
+        impl const Add for $name {
             type Output = $name;
             fn add(self, rhs: $name) -> $name {
                 $name(self.0 + rhs.0)
             }
         }
-        impl AddAssign for $name {
+        impl const AddAssign for $name {
             fn add_assign(&mut self, rhs: $name) {
                 self.0 += rhs.0;
             }
         }
-        impl Sub for $name {
+        impl const Sub for $name {
             type Output = $name;
             fn sub(self, rhs: $name) -> $name {
                 $name(self.0 - rhs.0)
             }
         }
-        impl Mul<f32> for $name {
+        impl const Mul<f32> for $name {
             type Output = $name;
             fn mul(self, rhs: f32) -> $name {
                 $name(self.0 * rhs)
             }
         }
-        impl Div<f32> for $name {
+        impl const Div<f32> for $name {
             type Output = $name;
             fn div(self, rhs: f32) -> $name {
                 $name(self.0 / rhs)
             }
         }
-        impl Div<$name> for $name {
+        impl const Div<$name> for $name {
             type Output = f32;
             fn div(self, rhs: $name) -> f32 {
                 self.0 / rhs.0
@@ -148,31 +148,31 @@ macro_rules! pressure_unit_relative {
         }
 
         /// Arithmetic
-        impl Add for $name {
+        impl const Add for $name {
             type Output = $name;
             fn add(self, rhs: $name) -> $name {
                 $name(self.0 + rhs.0)
             }
         }
-        impl Sub for $name {
+        impl const Sub for $name {
             type Output = $name;
             fn sub(self, rhs: $name) -> $name {
                 $name(self.0 - rhs.0)
             }
         }
-        impl Mul<f32> for $name {
+        impl const Mul<f32> for $name {
             type Output = $name;
             fn mul(self, rhs: f32) -> $name {
                 $name(self.0 * rhs)
             }
         }
-        impl Mul<usize> for $name {
+        impl const Mul<usize> for $name {
             type Output = $name;
             fn mul(self, rhs: usize) -> $name {
                 $name(self.0 * rhs as f32)
             }
         }
-        impl Div<f32> for $name {
+        impl const Div<f32> for $name {
             type Output = $name;
             fn div(self, rhs: f32) -> $name {
                 $name(self.0 / rhs)

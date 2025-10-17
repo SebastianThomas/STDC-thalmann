@@ -13,22 +13,22 @@ pub struct GasMix<F: Float> {
 }
 
 impl GasMix<f32> {
-    pub fn new(o2: f32, he: f32) -> Result<GasMix<f32>, &'static str> {
+    pub const fn new(o2: f32, he: f32) -> Result<GasMix<f32>, &'static str> {
         if o2 + he > 1.0 {
             return Err("FO2 + FHe should be <= 1");
         }
         Ok(GasMix { o2, he, h2: 0.0 })
     }
 
-    pub fn o2(&self) -> f32 {
+    pub const fn o2(&self) -> f32 {
         self.o2
     }
 
-    pub fn he(&self) -> f32 {
+    pub const fn he(&self) -> f32 {
         self.he
     }
 
-    pub fn h2(&self) -> f32 {
+    pub const fn h2(&self) -> f32 {
         self.h2
     }
 
