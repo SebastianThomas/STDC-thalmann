@@ -7,6 +7,7 @@
 #![feature(generic_const_exprs)]
 
 mod depth_utils;
+pub mod display_utils;
 pub mod dive;
 pub mod gas;
 mod mptt;

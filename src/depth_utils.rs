@@ -1,5 +1,7 @@
 use core::time::Duration;
 
+// Required for usage of float methods
+#[allow(unused)]
 use num::Float;
 
 use crate::pressure_unit::{msw, Pa, Pressure};
