@@ -18,7 +18,7 @@ pub struct ModelState {
     // previous_tt: f32,                        // TT0
 }
 
-pub fn set_m(mode: u8) -> MVALUES {
+pub const fn set_m(mode: u8) -> MVALUES {
     if mode == 0 || mode != 1 {
         return XVAL_HE9_040_F32;
     }
@@ -30,21 +30,25 @@ pub fn set_m(mode: u8) -> MVALUES {
     let mut result = XVAL_HE9_040_F32;
     // Copy surfacing MVals to IDX row // TODO: What are surfacing?
     result[idx] = result[0];
-    for i in 0..idx {
+    let mut i = 0;
+    while i < idx {
         // Zero MVals for stop depths shallower than IDX row
         result[i] = TissueRow {
             depth: result[i].depth,
             max_saturation: [msw::new(0.0).to_pa(); NUM_TISSUES],
         };
+        i += 1;
     }
     return result;
 }
 
 pub fn initialize_profile() {
+    // TODO:
     ()
 }
 pub fn initialize_model_state() -> ModelState {
     // --- Flags and booleans ---
+    // TODO:
     ModelState {
         // finished_profile: false,
         // first_stop_calculated: false,

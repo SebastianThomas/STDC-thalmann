@@ -10,7 +10,7 @@ mod depth_utils;
 pub mod display_utils;
 pub mod dive;
 pub mod gas;
-mod mptt;
+pub mod mptt;
 pub mod pressure_unit;
 mod setup;
 mod thalmann;
@@ -19,5 +19,6 @@ mod update;
 mod update_exp;
 mod update_thalmann;
 
-pub use thalmann::{calc_deco_schedule, thalmann, ThalmannResult};
+pub use setup::{DINC, LAST_STOP};
+pub use thalmann::{calc_deco_schedule, thalmann, ThalmannResult, MVALUES_HE9_040};
 pub use update::loadings_from_dive_profile;

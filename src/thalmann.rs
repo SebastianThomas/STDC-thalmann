@@ -29,6 +29,8 @@ pub enum ThalmannResult {
     },
 }
 
+pub const MVALUES_HE9_040: MVALUES = set_m(0);
+
 pub fn thalmann<P: Pressure, const NUM_GASES: usize>(
     loading: &mut TissuesLoading<NUM_TISSUES, Pa>,
     max_depth: P,
@@ -49,7 +51,7 @@ where
     initialize_profile();
     initialize_model_state();
 
-    let m_values = set_m(0);
+    let m_values = &MVALUES_HE9_040;
 
     // Current depth idx
     let mut current_maximum_allowed_depth: msw = max_depth.to_msw();
@@ -85,12 +87,12 @@ where
         update_model_state(
             loading,
             &TISSUES,
-            &m_values,
+            m_values,
             &gases[current_gas],
             current_depth,
             &duration,
         );
-        let first_stop = first_stop_depth(&loading, &m_values);
+        let first_stop = first_stop_depth(&loading, m_values);
         if first_stop.is_none() {
             return ThalmannResult::FinishedResult {
                 iterations: iter_count,
@@ -102,13 +104,20 @@ where
             &loading,
             &TISSUES,
             &gases[current_gas],
-            &m_values,
+            m_values,
             current_maximum_allowed_depth,
         );
     }
 }
 
-pub fn calc_deco_schedule<const NUM_TISSUES: usize, const NUM_STOPS: usize>(
+pub fn calc_deco_schedule<const NUM_STOPS: usize>(
+    loading: &TissuesLoading<NUM_TISSUES, Pa>,
+    breathing_gas: &GasMix<f32>,
+) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
+    calc_deco_schedule_intern(loading, &TISSUES, breathing_gas, &MVALUES_HE9_040)
+}
+
+pub fn calc_deco_schedule_intern<const NUM_TISSUES: usize, const NUM_STOPS: usize>(
     loading: &TissuesLoading<NUM_TISSUES, Pa>,
     tissues: &[Tissue; NUM_TISSUES],
     breathing_gas: &GasMix<f32>,
@@ -121,7 +130,8 @@ pub fn calc_deco_schedule<const NUM_TISSUES: usize, const NUM_STOPS: usize>(
         [Stop::new(msw::new(0.0), Duration::from_millis(0)); NUM_STOPS];
 
     for i in 0..NUM_STOPS {
-        stops[stop_idx_in_stops(NUM_STOPS, i)] = Stop::new(get_depth(i).to_msw(), Duration::from_millis(0));
+        stops[stop_idx_in_stops(NUM_STOPS, i)] =
+            Stop::new(get_depth(i).to_msw(), Duration::from_millis(0));
     }
     while let Some(stop_depth) = first_stop_depth(&loading, m_values) {
         let depth_idx = get_depth_idx(stop_depth);
