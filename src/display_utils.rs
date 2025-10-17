@@ -60,12 +60,16 @@ pub fn format_f32<const C: char, const BEFORE_COMMA: usize, const AFTER_COMMA: u
     // Pad the integer part (BEFORE_COMMA digits, fill with C)
     let mut int_chars = [C; BEFORE_COMMA];
     {
+        let mut fill = true;
         let mut temp = int_part;
         let mut idx = BEFORE_COMMA;
         while idx > 0 {
             idx -= 1;
             let digit = (temp % 10) as u32;
-            int_chars[idx] = char::from_digit(digit, 10).unwrap_or(C);
+            if !fill || digit != 0 {
+                int_chars[idx] = char::from_digit(digit, 10).unwrap_or(C);
+                fill = false;
+            }
             temp /= 10;
             if temp == 0 {
                 break;
