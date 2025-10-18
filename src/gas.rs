@@ -1,6 +1,6 @@
 use num::Float;
 
-use crate::pressure_unit::Pressure;
+use crate::pressure_unit::{msw, Pressure};
 
 pub const N2_IDX: usize = 0;
 pub const HE_IDX: usize = 1;
@@ -48,11 +48,14 @@ pub struct TissuesLoading<const NUM_TISSUES: usize, P: Pressure> {
     pub he: [P; NUM_TISSUES],
 }
 
-impl<const NUM_TS: usize, P: Pressure> TissuesLoading<NUM_TS, P> {
-    pub fn new(ambient: P, breathing_gas: GasMix<f32>) -> TissuesLoading<NUM_TS, P> {
+impl<const NUM_TS: usize> TissuesLoading<NUM_TS, msw> {
+    pub const fn new<P: const Pressure>(
+        ambient: P,
+        breathing_gas: GasMix<f32>,
+    ) -> TissuesLoading<NUM_TS, msw> {
         TissuesLoading {
-            n2: [ambient * breathing_gas.n2(); NUM_TS],
-            he: [ambient * breathing_gas.he(); NUM_TS],
+            n2: [ambient.to_msw() * breathing_gas.n2(); NUM_TS],
+            he: [ambient.to_msw() * breathing_gas.he(); NUM_TS],
         }
     }
 }
