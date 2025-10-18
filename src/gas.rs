@@ -53,7 +53,7 @@ pub struct TissuesLoading<const NUM_TISSUES: usize, P: Pressure> {
 impl<const NUM_TS: usize, P: const Pressure + const Mul<f32>> TissuesLoading<NUM_TS, P> {
     pub const fn new(
         ambient: P,
-        breathing_gas: GasMix<f32>,
+        breathing_gas: &GasMix<f32>,
     ) -> TissuesLoading<NUM_TS, P> {
         TissuesLoading {
             n2: [ambient * breathing_gas.n2(); NUM_TS],

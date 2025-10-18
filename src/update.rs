@@ -2,7 +2,7 @@ use core::time::Duration;
 
 use crate::{
     dive::{DiveMeasurement, DiveProfile},
-    gas::{TissuesLoading, HE_IDX, N2_IDX},
+    gas::{TissuesLoading, AIR, HE_IDX, N2_IDX},
     mptt::{Tissue, MVALUES},
     pressure_unit::{msw, Pa},
     thalmann::update_model_state,
@@ -39,10 +39,7 @@ pub fn loadings_from_dive_profile<
     m_values: &MVALUES,
     surface: Pa,
 ) -> TissuesLoading<NUM_TISSUES, Pa> {
-    let mut loadings = TissuesLoading {
-        he: [surface; NUM_TISSUES],
-        n2: [surface; NUM_TISSUES],
-    };
+    let mut loadings = TissuesLoading::new(surface, &AIR);
     for w in profile.measurements.windows(2) {
         if w.len() != 2 {
             panic!("Windows does not do what I expect");
