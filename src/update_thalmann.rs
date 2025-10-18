@@ -1,4 +1,5 @@
 use core::{f32::consts::LN_2, time::Duration};
+#[allow(unused)]
 use num::Float;
 
 use crate::{
