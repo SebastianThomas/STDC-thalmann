@@ -1,3 +1,5 @@
+use core::ops::Mul;
+
 use num::Float;
 
 use crate::pressure_unit::{msw, Pressure};
@@ -48,14 +50,14 @@ pub struct TissuesLoading<const NUM_TISSUES: usize, P: Pressure> {
     pub he: [P; NUM_TISSUES],
 }
 
-impl<const NUM_TS: usize> TissuesLoading<NUM_TS, msw> {
-    pub const fn new<P: const Pressure>(
+impl<const NUM_TS: usize, P: const Pressure + const Mul<f32>> TissuesLoading<NUM_TS, P> {
+    pub const fn new_msw(
         ambient: P,
         breathing_gas: GasMix<f32>,
-    ) -> TissuesLoading<NUM_TS, msw> {
+    ) -> TissuesLoading<NUM_TS, P> {
         TissuesLoading {
-            n2: [ambient.to_msw() * breathing_gas.n2(); NUM_TS],
-            he: [ambient.to_msw() * breathing_gas.he(); NUM_TS],
+            n2: [ambient * breathing_gas.n2(); NUM_TS],
+            he: [ambient * breathing_gas.he(); NUM_TS],
         }
     }
 }
