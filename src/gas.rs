@@ -2,7 +2,7 @@ use core::ops::Mul;
 
 use num::Float;
 
-use crate::pressure_unit::{msw, Pressure};
+use crate::pressure_unit::{Pressure};
 
 pub const N2_IDX: usize = 0;
 pub const HE_IDX: usize = 1;
