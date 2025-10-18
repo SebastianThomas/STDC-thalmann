@@ -37,8 +37,22 @@ impl GasMix<f32> {
     }
 }
 
+pub const AIR: GasMix<f32> = match GasMix::new(0.79, 0.000_005_2) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
+
 #[derive(Debug, Clone)]
 pub struct TissuesLoading<const NUM_TISSUES: usize, P: Pressure> {
     pub n2: [P; NUM_TISSUES],
     pub he: [P; NUM_TISSUES],
+}
+
+impl<const NUM_TS: usize, P: Pressure> TissuesLoading<NUM_TS, P> {
+    pub fn new(ambient: P, breathing_gas: GasMix<f32>) -> TissuesLoading<NUM_TS, P> {
+        TissuesLoading {
+            n2: [ambient * breathing_gas.n2(); NUM_TS],
+            he: [ambient * breathing_gas.he(); NUM_TS],
+        }
+    }
 }
