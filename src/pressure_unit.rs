@@ -14,10 +14,10 @@ pub const trait Pressure:
     + Debug
     + PartialEq
     + PartialOrd
-    + Add
-    + Sub
-    + Mul<f32, Output = Self>
-    + Div<f32, Output = Self>
+    + const Add
+    + const Sub
+    + const Mul<f32, Output = Self>
+    + const Div<f32, Output = Self>
 {
     fn to_pa(self) -> Pa;
     fn to_kpa(self) -> kPa;
