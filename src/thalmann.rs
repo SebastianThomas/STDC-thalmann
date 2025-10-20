@@ -2,7 +2,9 @@ use core::time::Duration;
 
 use crate::depth_utils::{get_depth, get_depth_idx};
 use crate::dive::{Stop, StopSchedule};
-use crate::gas::{GasMix, TissuesLoading};
+use crate::gas::{
+    best_available_mix, GasDensitySettings, GasMix, TissuesLoading, MAX_GAS_DENSITY, MAX_PO2_DECO,
+};
 use crate::mptt::{Tissue, MVALUES, NUM_STOP_DEPTHS, TISSUES};
 use crate::pressure_unit::{msw, Pa, Pressure};
 use crate::setup::{initialize_model_state, initialize_profile, set_m, LAST_STOP, NUM_TISSUES};
@@ -110,30 +112,51 @@ where
     }
 }
 
-pub fn calc_deco_schedule<const NUM_STOPS: usize>(
+pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
     loading: &TissuesLoading<NUM_TISSUES, Pa>,
-    breathing_gas: &GasMix<f32>,
+    gases: &[GasMix<f32>; NUM_GASES],
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
-    calc_deco_schedule_intern(loading, &TISSUES, breathing_gas, &MVALUES_HE9_040)
+    calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES_HE9_040)
 }
 
-pub fn calc_deco_schedule_intern<const NUM_TS: usize, const NUM_STOPS: usize>(
+fn calc_deco_schedule_intern<
+    const NUM_TS: usize,
+    const NUM_STOPS: usize,
+    const NUM_GASES: usize,
+>(
     loading: &TissuesLoading<NUM_TS, Pa>,
     tissues: &[Tissue; NUM_TS],
-    breathing_gas: &GasMix<f32>,
+    gases: &[GasMix<f32>; NUM_GASES],
     m_values: &MVALUES,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
     assert!(NUM_STOPS < NUM_STOP_DEPTHS);
 
+    let gas_density_settings: GasDensitySettings = GasDensitySettings::Limit {
+        limit: MAX_GAS_DENSITY,
+    };
+
     let mut loading = loading.clone();
     let mut stops: [Stop; NUM_STOPS] =
-        [Stop::new(msw::new(0.0), Duration::from_millis(0)); NUM_STOPS];
+        [Stop::new(msw::new(0.0), Duration::from_millis(0), None); NUM_STOPS];
 
     for i in 0..NUM_STOPS {
         stops[stop_idx_in_stops(NUM_STOPS, i)] =
-            Stop::new(get_depth(i).to_msw(), Duration::from_millis(0));
+            Stop::new(get_depth(i).to_msw(), Duration::from_millis(0), None);
     }
     while let Some(stop_depth) = first_stop_depth(&loading, m_values) {
+        let mix = best_available_mix(
+            MAX_PO2_DECO,
+            stop_depth,
+            gases,
+            &loading,
+            false,
+            &gas_density_settings,
+        );
+        if mix.is_none() {
+            return Err("No gas for depth.");
+        }
+        let (_gas_idx, breathing_gas) = mix.unwrap();
+
         let depth_idx = get_depth_idx(stop_depth);
         if depth_idx > NUM_STOPS {
             return Err("Not enough space to store stops for this dive.");
@@ -153,7 +176,7 @@ pub fn calc_deco_schedule_intern<const NUM_TS: usize, const NUM_STOPS: usize>(
             stop_depth,
             &stop_duration,
         );
-        stops[depth_idx] = Stop::new(stop_depth, stop_duration);
+        stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(breathing_gas));
     }
     Ok(StopSchedule::new(stops))
 }

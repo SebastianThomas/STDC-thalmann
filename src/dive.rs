@@ -2,7 +2,7 @@ use core::time::Duration;
 
 use crate::{
     depth_utils::get_ascent_time,
-    gas,
+    gas::{self, GasMix},
     pressure_unit::{msw, Pa, Pressure},
 };
 
@@ -27,13 +27,15 @@ pub struct DiveProfile<F: Float, const G: usize, const M: usize> {
 pub struct Stop {
     depth: msw,
     duration: Duration,
+    gas: Option<GasMix<f32>>,
 }
 
 impl Stop {
-    pub fn new<P: Pressure>(depth: P, duration: Duration) -> Self {
+    pub fn new<P: Pressure>(depth: P, duration: Duration, gas: Option<&GasMix<f32>>) -> Self {
         Stop {
             depth: depth.to_msw(),
             duration,
+            gas: gas.map(|g| g.clone()),
         }
     }
 
@@ -43,6 +45,10 @@ impl Stop {
 
     pub fn duration(&self) -> Duration {
         self.duration
+    }
+
+    pub fn gas(&self) -> Option<GasMix<f32>> {
+        self.gas
     }
 }
 

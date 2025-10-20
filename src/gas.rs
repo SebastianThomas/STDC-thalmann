@@ -20,10 +20,10 @@ pub const DENSITY_HE: f32 = 0.1785;
 pub const DENSITY_H2: f32 = 0.0899;
 pub const DENSITY_AIR: f32 = 1.205;
 
-pub const MAX_GAS_DENSITY: f32 = 5.2;
-pub const MAX_GAS_DENSITY_LIMIT: f32 = 6.2;
+pub const MAX_GAS_DENSITY: Bar = Bar::new(5.2);
+pub const MAX_GAS_DENSITY_LIMIT: Bar = Bar::new(6.2);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct GasMix<F: Float> {
     o2: F,
     he: F,
@@ -149,16 +149,17 @@ pub fn best_available_mix<
     available_gases: &'a [GasMix<f32>; G],
     tissue_loading: &TissuesLoading<NUM_TS, P>,
     ignore_isobaric_counterdiffusion: bool,
-    gas_density: GasDensitySettings,
-) -> Option<&'a GasMix<f32>> {
+    gas_density: &GasDensitySettings,
+) -> Option<(usize, &'a GasMix<f32>)> {
     let best_mix_po2 = best_mix_o2(max_po2, depth);
     available_gases
         .iter()
-        .filter(|g| g.o2() <= best_mix_po2)
-        .filter(|g| {
+        .enumerate()
+        .filter(|(_i, g)| g.o2() <= best_mix_po2)
+        .filter(|(_i, g)| {
             ignore_isobaric_counterdiffusion
                 || tissue_loading.is_isobaric_counterdiffusion(depth, g)
         })
-        .filter(|g| gas_density.no_violation(depth, g))
-        .reduce(|a, b| if a.o2() > b.o2() { a } else { b })
+        .filter(|(_i, g)| gas_density.no_violation(depth, g))
+        .reduce(|a, b| if a.1.o2() > b.1.o2() { a } else { b })
 }
