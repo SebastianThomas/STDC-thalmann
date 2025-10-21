@@ -14,8 +14,8 @@ pub const trait Pressure:
     + Debug
     + PartialEq
     + PartialOrd
-    + const Add
-    + const Sub
+    + const Add<Self, Output = Self>
+    + const Sub<Self, Output = Self>
     + const Mul<f32, Output = Self>
     + const Div<f32, Output = Self>
 {

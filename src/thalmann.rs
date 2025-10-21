@@ -113,7 +113,7 @@ where
 }
 
 pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
-    loading: &TissuesLoading<NUM_TISSUES, Pa>,
+    loading: &TissuesLoading<5, Pa>,
     gases: &[GasMix<f32>; NUM_GASES],
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
     calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES_HE9_040)

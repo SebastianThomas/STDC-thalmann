@@ -23,6 +23,37 @@ pub const DENSITY_AIR: f32 = 1.205;
 pub const MAX_GAS_DENSITY: Bar = Bar::new(5.2);
 pub const MAX_GAS_DENSITY_LIMIT: Bar = Bar::new(6.2);
 
+pub const trait Gas {
+    fn po2<D: const Pressure>(&self, depth: D) -> Bar;
+    fn pn2<D: const Pressure>(&self, depth: D) -> Bar;
+    fn phe<D: const Pressure>(&self, depth: D) -> Bar;
+    fn ph2<D: const Pressure>(&self, depth: D) -> Bar;
+    fn pn2_phe_ph2<D: const Pressure>(&self, depth: D) -> (Bar, Bar, Bar);
+
+    fn o2_density<P: const Pressure>(&self, depth: P) -> Bar {
+        self.po2(depth) * DENSITY_O2
+    }
+
+    fn n2_density<P: const Pressure>(&self, depth: P) -> Bar {
+        self.pn2(depth) * DENSITY_N2
+    }
+
+    fn he_density<P: const Pressure>(&self, depth: P) -> Bar {
+        self.phe(depth) * DENSITY_HE
+    }
+
+    fn h2_density<P: const Pressure>(&self, depth: P) -> Bar {
+        self.ph2(depth) * DENSITY_H2
+    }
+
+    fn gas_density<P: const Pressure>(&self, depth: P) -> Bar {
+        self.o2_density(depth)
+            + self.n2_density(depth)
+            + self.he_density(depth)
+            + self.h2_density(depth)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct GasMix<F: Float> {
     o2: F,
@@ -38,44 +69,82 @@ impl GasMix<f32> {
         Ok(GasMix { o2, he, h2: 0.0 })
     }
 
-    pub const fn o2(&self) -> f32 {
+    pub const fn fo2(&self) -> f32 {
         self.o2
     }
 
-    pub const fn he(&self) -> f32 {
+    pub const fn fn2(&self) -> f32 {
+        1.0 - (self.o2 + self.he + self.h2)
+    }
+
+    pub const fn fhe(&self) -> f32 {
         self.he
     }
 
-    pub const fn h2(&self) -> f32 {
+    pub const fn fh2(&self) -> f32 {
         self.h2
     }
+}
 
-    pub const fn n2(&self) -> f32 {
-        1.0 - (self.o2 + self.he)
+impl const Gas for GasMix<f32> {
+    fn po2<D: const Pressure>(&self, depth: D) -> Bar {
+        depth.to_bar() * self.o2
     }
 
-    pub const fn o2_density(&self) -> f32 {
-        self.o2() * DENSITY_O2
+    fn phe<D: const Pressure>(&self, depth: D) -> Bar {
+        depth.to_bar() * self.he
     }
 
-    pub const fn n2_density(&self) -> f32 {
-        self.n2() * DENSITY_N2
+    fn ph2<D: const Pressure>(&self, depth: D) -> Bar {
+        depth.to_bar() * self.h2
     }
 
-    pub const fn he_density(&self) -> f32 {
-        self.he() * DENSITY_HE
+    fn pn2<D: const Pressure>(&self, depth: D) -> Bar {
+        depth.to_bar() * self.fn2()
     }
 
-    pub const fn h2_density(&self) -> f32 {
-        self.h2() * DENSITY_H2
+    fn pn2_phe_ph2<D: const Pressure>(&self, depth: D) -> (Bar, Bar, Bar) {
+        (self.pn2(depth), self.phe(depth), self.ph2(depth))
+    }
+}
+
+pub struct CCRGas<F: Float> {
+    diluent: GasMix<F>,
+    set_point: Bar,
+}
+
+impl const Gas for CCRGas<f32> {
+    fn po2<D: const Pressure>(&self, depth: D) -> Bar {
+        let depth = depth.to_bar();
+        if depth.to_f32() < self.set_point.to_bar().to_f32() {
+            depth
+        } else {
+            self.set_point
+        }
     }
 
-    pub const fn gas_density(&self) -> f32 {
-        self.o2_density() + self.n2_density() + self.he_density() + self.h2_density()
+    fn pn2_phe_ph2<D: const Pressure>(&self, depth: D) -> (Bar, Bar, Bar) {
+        let depth = depth.to_bar();
+        let po2 = self.po2(depth);
+        let fo2_loop = po2 / depth;
+        let fo2_dil = self.diluent.fo2();
+        let fo2_from_dil = (fo2_loop - fo2_dil) / (1.0 - fo2_dil);
+        let fn2_loop = (1.0 - fo2_from_dil) * self.diluent.fn2();
+        let fhe_loop = (1.0 - fo2_from_dil) * self.diluent.fhe();
+        let fh2_loop = (1.0 - fo2_from_dil) * self.diluent.fh2();
+        return (depth * fn2_loop, depth * fhe_loop, depth * fh2_loop);
     }
 
-    pub const fn gas_density_depth<P: Pressure>(&self, depth: P) -> P {
-        depth * self.gas_density()
+    fn pn2<D: const Pressure>(&self, depth: D) -> Bar {
+        self.pn2_phe_ph2(depth).0
+    }
+
+    fn phe<D: const Pressure>(&self, depth: D) -> Bar {
+        self.pn2_phe_ph2(depth).1
+    }
+
+    fn ph2<D: const Pressure>(&self, depth: D) -> Bar {
+        self.pn2_phe_ph2(depth).2
     }
 }
 
@@ -93,25 +162,25 @@ pub struct TissuesLoading<const NUM_TISSUES: usize, P: Pressure> {
 impl<const NUM_TS: usize, P: const Pressure> TissuesLoading<NUM_TS, P> {
     pub const fn new(ambient: P, breathing_gas: &GasMix<f32>) -> TissuesLoading<NUM_TS, P> {
         TissuesLoading {
-            n2: [ambient * breathing_gas.n2(); NUM_TS],
-            he: [ambient * breathing_gas.he(); NUM_TS],
+            n2: [ambient * breathing_gas.fn2(); NUM_TS],
+            he: [ambient * breathing_gas.fhe(); NUM_TS],
         }
     }
 
-    pub fn is_isobaric_counterdiffusion<D: Pressure>(
+    pub fn is_isobaric_counterdiffusion<D: Pressure, G: Gas>(
         &self,
         depth: D,
-        new_gas: &GasMix<f32>,
+        new_gas: &G,
     ) -> bool {
-        let depth = depth.to_pa();
-        let new_gas_n2 = depth * new_gas.n2();
-        let new_gas_he = depth * new_gas.he();
+        let depth = depth.to_bar();
+        let new_gas_n2 = new_gas.pn2(depth);
+        let new_gas_he = new_gas.phe(depth);
         return zip(self.n2, self.he)
-            .any(|(n2, he)| n2.to_pa() < new_gas_n2 && he.to_pa() > new_gas_he);
+            .any(|(n2, he)| n2.to_bar() < new_gas_n2 && he.to_bar() > new_gas_he);
     }
 }
 
-pub fn best_mix_o2<P: Pressure>(max_po2: Bar, depth: P) -> f32 {
+pub fn best_mix_fo2<P: Pressure>(max_po2: Bar, depth: P) -> f32 {
     max_po2 / depth.to_bar()
 }
 
@@ -121,9 +190,9 @@ pub enum GasDensitySettings {
 }
 
 impl GasDensitySettings {
-    pub fn no_violation<P: Pressure>(&self, depth: P, gas: &GasMix<f32>) -> bool {
+    pub fn no_violation<P: const Pressure>(&self, depth: P, gas: &GasMix<f32>) -> bool {
         if let GasDensitySettings::Limit { limit } = self {
-            return gas.gas_density_depth(depth).to_bar() < *limit;
+            return gas.gas_density(depth).to_bar() < *limit;
         }
         return true;
     }
@@ -139,7 +208,7 @@ impl GasDensitySettings {
 */
 pub fn best_available_mix<
     'a,
-    D: Pressure,
+    D: const Pressure,
     P: const Pressure + const Mul<f32>,
     const G: usize,
     const NUM_TS: usize,
@@ -151,15 +220,15 @@ pub fn best_available_mix<
     ignore_isobaric_counterdiffusion: bool,
     gas_density: &GasDensitySettings,
 ) -> Option<(usize, &'a GasMix<f32>)> {
-    let best_mix_po2 = best_mix_o2(max_po2, depth);
+    let best_mix_fo2 = best_mix_fo2(max_po2, depth);
     available_gases
         .iter()
         .enumerate()
-        .filter(|(_i, g)| g.o2() <= best_mix_po2)
+        .filter(|(_i, g)| g.fo2() <= best_mix_fo2)
         .filter(|(_i, g)| {
             ignore_isobaric_counterdiffusion
-                || tissue_loading.is_isobaric_counterdiffusion(depth, g)
+                || tissue_loading.is_isobaric_counterdiffusion(depth, *g)
         })
         .filter(|(_i, g)| gas_density.no_violation(depth, g))
-        .reduce(|a, b| if a.1.o2() > b.1.o2() { a } else { b })
+        .reduce(|a, b| if a.1.fo2() > b.1.fo2() { a } else { b })
 }
