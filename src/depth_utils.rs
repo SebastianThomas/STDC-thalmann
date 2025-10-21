@@ -7,7 +7,7 @@ use num::Float;
 use crate::pressure_unit::{msw, Pa, Pressure};
 use crate::setup::DINC;
 
-pub fn get_depth(d_idx: usize) -> Pa {
+pub const fn get_depth(d_idx: usize) -> Pa {
     DINC.to_pa() * d_idx as f32
 }
 

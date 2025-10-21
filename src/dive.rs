@@ -31,11 +31,15 @@ pub struct Stop {
 }
 
 impl Stop {
-    pub fn new<P: Pressure>(depth: P, duration: Duration, gas: Option<&GasMix<f32>>) -> Self {
+    pub const fn new<P: const Pressure>(
+        depth: P,
+        duration: Duration,
+        gas: Option<GasMix<f32>>,
+    ) -> Self {
         Stop {
             depth: depth.to_msw(),
             duration,
-            gas: gas.map(|g| g.clone()),
+            gas,
         }
     }
 
@@ -57,14 +61,16 @@ pub struct StopSchedule<const NUM_STOPS: usize> {
     stops: [Stop; NUM_STOPS],
 }
 
-impl<const NUM_STOPS: usize> Default for StopSchedule<NUM_STOPS> {
+impl<const NUM_STOPS: usize> const Default for StopSchedule<NUM_STOPS> {
     fn default() -> Self {
         let mut stops: [Stop; NUM_STOPS] =
             [Stop::new(msw::new(0.0), Duration::from_millis(0), None); NUM_STOPS];
 
-        for i in 0..NUM_STOPS {
+        let mut i = 0;
+        while i < NUM_STOPS {
             stops[NUM_STOPS - i - 1] =
                 Stop::new(get_depth(i).to_msw(), Duration::from_millis(0), None);
+            i += 1;
         }
         StopSchedule { stops }
     }

@@ -176,7 +176,7 @@ fn calc_deco_schedule_intern<
             stop_depth,
             &stop_duration,
         );
-        stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(breathing_gas));
+        stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(breathing_gas.clone()));
     }
     Ok(StopSchedule::new(stops))
 }
