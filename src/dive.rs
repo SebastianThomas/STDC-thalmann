@@ -1,7 +1,7 @@
 use core::time::Duration;
 
 use crate::{
-    depth_utils::get_ascent_time,
+    depth_utils::{get_ascent_time, get_depth},
     gas::{self, GasMix},
     pressure_unit::{msw, Pa, Pressure},
 };
@@ -55,6 +55,19 @@ impl Stop {
 #[derive(Debug, Clone)]
 pub struct StopSchedule<const NUM_STOPS: usize> {
     stops: [Stop; NUM_STOPS],
+}
+
+impl<const NUM_STOPS: usize> Default for StopSchedule<NUM_STOPS> {
+    fn default() -> Self {
+        let mut stops: [Stop; NUM_STOPS] =
+            [Stop::new(msw::new(0.0), Duration::from_millis(0), None); NUM_STOPS];
+
+        for i in 0..NUM_STOPS {
+            stops[NUM_STOPS - i - 1] =
+                Stop::new(get_depth(i).to_msw(), Duration::from_millis(0), None);
+        }
+        StopSchedule { stops }
+    }
 }
 
 impl<const NUM_STOPS: usize> StopSchedule<NUM_STOPS> {
