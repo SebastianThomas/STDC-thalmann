@@ -19,12 +19,12 @@ pub const trait Pressure:
     + const Mul<f32, Output = Self>
     + const Div<f32, Output = Self>
 {
-    fn to_pa(self) -> Pa;
-    fn to_kpa(self) -> kPa;
-    fn to_hpa(self) -> hPa;
-    fn to_bar(self) -> Bar;
-    fn to_msw(self) -> msw;
-    fn to_f32(self) -> f32;
+    const fn to_pa(self) -> Pa;
+    const fn to_kpa(self) -> kPa;
+    const fn to_hpa(self) -> hPa;
+    const fn to_bar(self) -> Bar;
+    const fn to_msw(self) -> msw;
+    const fn to_f32(self) -> f32;
 }
 
 /// Macro to generate pressure unit newtypes + trait impl + arithmetic

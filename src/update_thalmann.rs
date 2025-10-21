@@ -4,7 +4,7 @@ use num::Float;
 
 use crate::{
     depth_utils::get_depth_idx,
-    gas::{GasMix, TissuesLoading, HE_IDX, N2_IDX},
+    gas::{Gas, GasMix, TissuesLoading, HE_IDX, N2_IDX},
     mptt::{Tissue, MVALUES},
     pressure_unit::{msw, Pa, Pressure},
     time_utils::max,
@@ -20,10 +20,10 @@ pub fn update_model_state_thalmann<P: Pressure, const NUM_TISSUES: usize>(
     delta_time: &Duration,
 ) {
     let delta_time_minutes: f32 = delta_time.as_secs_f32() / 60.0;
-    let current_depth_pa: Pa = current_depth.to_pa();
+    let current_depth: Pa = current_depth.to_pa();
 
-    let p_inspired_n2 = current_depth_pa * breathing_gas.n2();
-    let p_inspired_he = current_depth_pa * breathing_gas.he();
+    let p_inspired_n2 = breathing_gas.pn2(current_depth);
+    let p_inspired_he = breathing_gas.phe(current_depth);
 
     let k_values: [f32; NUM_TISSUES] = tissues.map(|t| (LN_2 / t.half_time) * t.sdr);
 
@@ -39,7 +39,7 @@ pub fn update_model_state_thalmann<P: Pressure, const NUM_TISSUES: usize>(
             let k = k_values[tissue_idx];
             // M-value for this tissue at this depth
             let depth_idx = get_depth_idx(current_depth);
-            let m_value = m_values[depth_idx].max_saturation[tissue_idx];
+            let m_value = m_values[depth_idx].max_saturation[tissue_idx].to_bar();
             // Crossover time
             let t_x = -((m_value - p_inspired) / (p_old - p_inspired)).ln() / k;
 
@@ -77,8 +77,8 @@ pub fn compute_stop_time_thalmann<const NUM_TISSUES: usize>(
     let k_values: [f32; NUM_TISSUES] = tissues.map(|t| LN_2 / t.half_time * t.sdr);
 
     for (gas_idx, p_inspired) in [
-        (N2_IDX, stop_depth_pa * breathing_gas.n2()),
-        (HE_IDX, stop_depth_pa * breathing_gas.he()),
+        (N2_IDX, stop_depth_pa * breathing_gas.fn2()),
+        (HE_IDX, stop_depth_pa * breathing_gas.fhe()),
     ] {
         let gas_loading = match gas_idx {
             N2_IDX => &loading.n2,
@@ -119,6 +119,6 @@ pub fn compute_stop_time_thalmann<const NUM_TISSUES: usize>(
     Duration::from_secs_f32(t_stop_mins * 60.0)
 }
 
-fn get_exp_pressure(p_inspired: Pa, p_old: Pa, k: f32, t_x: f32) -> Pa {
+fn get_exp_pressure<P: const Pressure>(p_inspired: P, p_old: P, k: f32, t_x: f32) -> P {
     p_inspired + (p_old - p_inspired) * (-k * t_x).exp()
 }
