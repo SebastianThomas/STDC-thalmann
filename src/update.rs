@@ -35,7 +35,7 @@ pub fn loadings_from_dive_profile<
     const NUM_MEASUREMENTS: usize,
 >(
     tissues: &[Tissue; NUM_TISSUES],
-    profile: &DiveProfile<f32, NUM_GASES, NUM_MEASUREMENTS>,
+    profile: &DiveProfile<Pa, f32, NUM_GASES, NUM_MEASUREMENTS>,
     m_values: &MVALUES,
     surface: Pa,
 ) -> TissuesLoading<NUM_TISSUES, Pa> {

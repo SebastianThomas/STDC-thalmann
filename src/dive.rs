@@ -16,9 +16,9 @@ pub struct DiveMeasurement {
 }
 
 #[derive(Debug, Clone)]
-pub struct DiveProfile<F: Float, const G: usize, const M: usize> {
+pub struct DiveProfile<P: Pressure, F: Float, const G: usize, const M: usize> {
     pub dive_id: usize,
-    pub max_depth: F,
+    pub max_depth: P,
     pub gases: [gas::GasMix<F>; G],
     pub measurements: [DiveMeasurement; M],
 }
