@@ -54,7 +54,7 @@ pub const trait Gas {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GasMix<F: Float> {
     o2: F,
     he: F,
@@ -167,11 +167,7 @@ impl<const NUM_TS: usize, P: const Pressure> TissuesLoading<NUM_TS, P> {
         }
     }
 
-    pub fn is_isobaric_counterdiffusion<D: Pressure, G: Gas>(
-        &self,
-        depth: D,
-        new_gas: &G,
-    ) -> bool {
+    pub fn is_isobaric_counterdiffusion<D: Pressure, G: Gas>(&self, depth: D, new_gas: &G) -> bool {
         let depth = depth.to_bar();
         let new_gas_n2 = new_gas.pn2(depth);
         let new_gas_he = new_gas.phe(depth);
@@ -230,5 +226,91 @@ pub fn best_available_mix<
                 || tissue_loading.is_isobaric_counterdiffusion(depth, *g)
         })
         .filter(|(_i, g)| gas_density.no_violation(depth, g))
-        .reduce(|a, b| if a.1.fo2() > b.1.fo2() { a } else { b })
+        .reduce(|a, b| {
+            let better_fo2 = a.1.fo2() > b.1.fo2();
+            let same_fo2_better_he = a.1.fo2() == b.1.fo2() && a.1.fhe() > b.1.fhe();
+            if better_fo2 || same_fo2_better_he {
+                a
+            } else {
+                b
+            }
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::pressure_unit::msw;
+
+    use super::*;
+
+    #[test]
+    fn best_mix_fo2_test() {
+        assert_eq!(best_mix_fo2(Bar::new(1.6), msw::new(0.0)), 1.6);
+        assert_eq!(
+            best_mix_fo2(Bar::new(1.6), msw::new(6.0)) - 1.0 < 0.01,
+            true
+        );
+        assert_eq!(
+            best_mix_fo2(Bar::new(1.6), msw::new(21.0)) - 0.5 < 0.1,
+            true
+        );
+        assert_eq!(best_mix_fo2(Bar::new(1.4), msw::new(0.0)), 1.4);
+        assert_eq!(
+            best_mix_fo2(Bar::new(1.4), msw::new(4.0)) - 1.0 < 0.01,
+            true
+        );
+        assert_eq!(
+            best_mix_fo2(Bar::new(1.4), msw::new(18.0)) - 0.5 < 0.1,
+            true
+        );
+    }
+
+    #[test]
+    fn best_available_mix_test() {
+        let gases = [
+            AIR,
+            GasMix::new(0.21, 0.35).expect("21 + 35 < 100"),
+            GasMix::new(0.5, 0.0).expect("50 < 100"),
+        ];
+        let empty_tissues = TissuesLoading {
+            n2: [msw::new(0.0)],
+            he: [msw::new(0.0)],
+        };
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.6),
+                msw::new(21.0),
+                &gases,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::Ignore
+            )
+            .expect("There are gases, so reduce should return a result"),
+            (2_usize, &gases[2])
+        );
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.4),
+                msw::new(21.0),
+                &gases,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::Ignore
+            )
+            .expect("There are gases, so reduce should return a result"),
+            (1_usize, &gases[1])
+        );
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.6),
+                msw::new(22.0),
+                &gases,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::Ignore
+            )
+            .expect("There are gases, so reduce should return a result"),
+            (1_usize, &gases[1])
+        );
+    }
 }

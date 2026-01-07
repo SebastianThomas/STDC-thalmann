@@ -54,7 +54,7 @@ macro_rules! pressure_unit {
                 Bar(self.0 * $to_pa_factor / 1E5)
             }
             fn to_msw(self) -> msw {
-                msw((self.0 * $to_pa_factor - 1E5) / 1.013E5)
+                msw((self.0 * $to_pa_factor - 1E5) / 1.013E4)
             }
             fn to_f32(self) -> f32 {
                 self.0
@@ -130,10 +130,10 @@ macro_rules! pressure_unit_relative {
                 kPa(self.to_pa().0 / 1000.0)
             }
             fn to_bar(self) -> Bar {
-                Bar(self.to_pa().0 / 10E5)
+                Bar(self.to_pa().0 / 1E5)
             }
             fn to_msw(self) -> msw {
-                msw(self.to_pa().0 / 1.013E5)
+                msw((self.to_pa().0 - 1E5) / 1.013E4)
             }
             fn to_f32(self) -> f32 {
                 self.0
@@ -183,10 +183,45 @@ macro_rules! pressure_unit_relative {
 
 // -------------------- Base units --------------------
 pressure_unit!(Pa, 1.0);
+pressure_unit!(hPa, 100.0);
 pressure_unit!(kPa, 1000.0);
 pressure_unit!(Bar, 100_000.0);
-pressure_unit!(hPa, 100.0);
-pressure_unit_relative!(msw, 1.013E5);
+pressure_unit_relative!(msw, 1.013E4);
 pressure_unit_relative!(fsw, 3064.30593138);
 #[allow(non_camel_case_types)]
 pub type mBar = hPa; // alias
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imp_metric_test() {
+        assert_eq!(fsw::new(0.0).to_msw(), msw::new(0.0));
+        assert_eq!(
+            msw::new(10.0) - fsw::new(33.0).to_msw() < msw::new(0.02),
+            true
+        );
+    }
+
+    #[test]
+    fn gas_conversion() {
+        let pa = Pa(100_000.0);
+        assert_eq!(pa.to_pa(), pa);
+        assert_eq!(pa.to_hpa(), hPa(1000.0));
+        assert_eq!(pa.to_kpa(), kPa(100.0));
+        assert_eq!(pa.to_bar(), Bar(1.0));
+        assert_eq!(pa.to_msw(), msw(0.0));
+        assert_eq!(pa.to_f32(), 100_000.0);
+
+        let msw0 = msw::new(0.0);
+        let msw6 = msw::new(6.0);
+        let msw10 = msw::new(10.0);
+        assert_eq!(msw0.to_pa().to_msw(), msw0);
+        assert_eq!(msw6.to_pa().to_msw(), msw6);
+        assert_eq!(msw10.to_pa().to_msw(), msw10);
+        assert_eq!(msw0.to_bar(), Bar::new(1.0));
+        assert_eq!(msw6.to_bar(), Bar::new(1.6078));
+        assert_eq!(msw10.to_bar(), Bar::new(2.013));
+    }
+}

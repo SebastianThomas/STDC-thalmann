@@ -1,5 +1,7 @@
 use core::time::Duration;
 
+pub use crate::depth_utils::get_ascent_rate_per_meter;
+
 use crate::{
     depth_utils::{get_ascent_time, get_depth},
     gas::{self, GasMix},
