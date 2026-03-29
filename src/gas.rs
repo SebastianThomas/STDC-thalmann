@@ -113,8 +113,8 @@ impl const Gas for GasMix<f32> {
 }
 
 pub struct CCRGas<F: Float, P: const AbsPressure> {
-    diluent: GasMix<F>,
-    set_point: P,
+    pub diluent: GasMix<F>,
+    pub set_point: P,
 }
 
 impl<P: const AbsPressure> CCRGas<f32, P> {
