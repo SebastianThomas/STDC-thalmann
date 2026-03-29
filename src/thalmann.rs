@@ -2,11 +2,9 @@ use core::time::Duration;
 
 use crate::depth_utils::{get_depth, get_depth_idx};
 use crate::dive::{Stop, StopSchedule};
-use crate::gas::{
-    best_available_mix, GasDensitySettings, GasMix, TissuesLoading
-};
+use crate::gas::{best_available_mix, GasDensitySettings, GasMix, TissuesLoading};
 use crate::mptt::{Tissue, MVALUES, NUM_STOP_DEPTHS, TISSUES};
-use crate::pressure_unit::{AbsPressure, Pa, Pressure, msw};
+use crate::pressure_unit::{msw, AbsPressure, Pa, Pressure};
 use crate::setup::{initialize_model_state, initialize_profile, set_m, LAST_STOP, NUM_TISSUES};
 use crate::time_utils::get_time_ms_rel;
 use crate::update::first_stop_depth;
@@ -117,30 +115,29 @@ type TissuesLoadingNumTissues<P> = TissuesLoading<NUM_TISSUES, P>;
 pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
     loading: &TissuesLoadingNumTissues<Pa>,
     gases: &[GasMix<f32>; NUM_GASES],
-    deco_settings: &DecoSettings<Pa>
+    deco_settings: &DecoSettings<Pa>,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
     calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES_HE9_040, deco_settings)
 }
 
-pub struct DecoSettings<P: const AbsPressure>  {
-gas_density_settings: GasDensitySettings<P>,
-max_deco_po2: P,
+pub struct DecoSettings<P: const AbsPressure> {
+    gas_density_settings: GasDensitySettings<P>,
+    max_deco_po2: P,
 }
 
 fn calc_deco_schedule_intern<
     const NUM_TS: usize,
     const NUM_STOPS: usize,
     const NUM_GASES: usize,
-    P: const AbsPressure
+    P: const AbsPressure,
 >(
     loading: &TissuesLoading<NUM_TS, P>,
     tissues: &[Tissue; NUM_TS],
     gases: &[GasMix<f32>; NUM_GASES],
     m_values: &MVALUES<P>,
-    deco_settings: &DecoSettings<P>
+    deco_settings: &DecoSettings<P>,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
     assert!(NUM_STOPS < NUM_STOP_DEPTHS);
-
 
     let mut loading = loading.clone();
     let mut stops: [Stop; NUM_STOPS] =
