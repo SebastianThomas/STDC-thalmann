@@ -18,7 +18,7 @@ pub mod gas;
 pub mod mptt;
 pub mod pressure_unit;
 mod setup;
-mod thalmann;
+pub mod thalmann;
 mod time_utils;
 mod update;
 mod update_exp;
