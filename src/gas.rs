@@ -3,7 +3,7 @@ use core::iter::zip;
 #[allow(unused)]
 use num::Float;
 
-use crate::pressure_unit::{AbsPressure, Bar, Pressure};
+use crate::pressure_unit::{AbsPressure, Bar};
 
 pub const N2_IDX: usize = 0;
 pub const HE_IDX: usize = 1;
@@ -202,7 +202,7 @@ impl<const NUM_TS: usize, P: const AbsPressure> TissuesLoading<NUM_TS, P> {
     }
 }
 
-pub fn best_mix_fo2<P: AbsPressure>(max_po2: P, depth: P) -> f32 {
+pub fn best_mix_fo2<P: const AbsPressure>(max_po2: P, depth: P) -> f32 {
     max_po2 / depth
 }
 
@@ -259,7 +259,7 @@ pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS
 
 #[cfg(test)]
 mod tests {
-    use crate::pressure_unit::msw;
+    use crate::pressure_unit::{msw, Pressure};
 
     use super::*;
 
