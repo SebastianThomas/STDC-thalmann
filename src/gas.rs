@@ -1,4 +1,4 @@
-use core::{iter::zip};
+use core::iter::zip;
 
 #[allow(unused)]
 use num::Float;
@@ -117,7 +117,20 @@ pub struct CCRGas<F: Float, P: const AbsPressure> {
     set_point: P,
 }
 
-impl <P: const AbsPressure> const Gas for CCRGas<f32, P> {
+impl<P: const AbsPressure> CCRGas<f32, P> {
+    pub fn to_fixed_gas_mix<D: const AbsPressure>(&self, depth: D) -> GasMix<f32> {
+        let (current_pn2, current_phe, _) = self.pn2_phe_ph2(depth);
+        let current_fn2 = current_pn2 / depth;
+        let current_fhe = current_phe / depth;
+        GasMix {
+            o2: self.fio2(depth),
+            he: current_fn2,
+            h2: current_fhe,
+        }
+    }
+}
+
+impl<P: const AbsPressure> const Gas for CCRGas<f32, P> {
     fn po2<D: const AbsPressure>(&self, depth: D) -> D {
         let set_point = D::from(self.set_point.to_pa());
         if depth < set_point {
@@ -173,8 +186,7 @@ impl<const NUM_TS: usize, P: const AbsPressure> TissuesLoading<NUM_TS, P> {
     pub fn is_isobaric_counterdiffusion<G: Gas>(&self, depth: P, new_gas: &G) -> bool {
         let new_gas_n2 = new_gas.pn2(depth);
         let new_gas_he = new_gas.phe(depth);
-        return zip(self.n2, self.he)
-            .any(|(n2, he)| n2 < new_gas_n2 && he > new_gas_he);
+        return zip(self.n2, self.he).any(|(n2, he)| n2 < new_gas_n2 && he > new_gas_he);
     }
 
     pub fn tick<G: Gas>(&mut self, time_delta_ms: u16, depth: P, gas: &G) {
@@ -184,7 +196,7 @@ impl<const NUM_TS: usize, P: const AbsPressure> TissuesLoading<NUM_TS, P> {
 
     fn tick_gas(time_delta_ms: u16, pp_insp: P, cur: &mut [P; NUM_TS]) {
         for i in 0..NUM_TS {
-            let delta:f32 = f32::from(time_delta_ms) / 1000.0;
+            let delta: f32 = f32::from(time_delta_ms) / 1000.0;
             cur[i] = cur[i] + (pp_insp - cur[i]) * delta;
         }
     }
@@ -216,12 +228,7 @@ impl<P: const AbsPressure> GasDensitySettings<P> {
 *
 * Best performance can be expected if called with P = D = Pa
 */
-pub fn best_available_mix<
-    'a,
-    P: const AbsPressure,
-    const G: usize,
-    const NUM_TS: usize,
->(
+pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS: usize>(
     max_po2: P,
     depth: P,
     available_gases: &'a [GasMix<f32>; G],
@@ -258,7 +265,10 @@ mod tests {
 
     #[test]
     fn best_mix_fo2_test() {
-        assert_eq!(best_mix_fo2(Bar::new(1.6).to_pa(), msw::new(0.0).to_pa()), 1.6);
+        assert_eq!(
+            best_mix_fo2(Bar::new(1.6).to_pa(), msw::new(0.0).to_pa()),
+            1.6
+        );
         assert_eq!(
             best_mix_fo2(Bar::new(1.6).to_pa(), msw::new(6.0).to_pa()) - 1.0 < 0.01,
             true
@@ -267,7 +277,10 @@ mod tests {
             best_mix_fo2(Bar::new(1.6).to_pa(), msw::new(21.0).to_pa()) - 0.5 < 0.1,
             true
         );
-        assert_eq!(best_mix_fo2(Bar::new(1.4).to_pa(), msw::new(0.0).to_pa()), 1.4);
+        assert_eq!(
+            best_mix_fo2(Bar::new(1.4).to_pa(), msw::new(0.0).to_pa()),
+            1.4
+        );
         assert_eq!(
             best_mix_fo2(Bar::new(1.4).to_pa(), msw::new(4.0).to_pa()) - 1.0 < 0.01,
             true
