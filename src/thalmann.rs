@@ -3,10 +3,10 @@ use core::time::Duration;
 use crate::depth_utils::{get_depth, get_depth_idx};
 use crate::dive::{Stop, StopSchedule};
 use crate::gas::{
-    best_available_mix, GasDensitySettings, GasMix, TissuesLoading, MAX_GAS_DENSITY, MAX_PO2_DECO,
+    best_available_mix, GasDensitySettings, GasMix, TissuesLoading
 };
 use crate::mptt::{Tissue, MVALUES, NUM_STOP_DEPTHS, TISSUES};
-use crate::pressure_unit::{msw, Pa, Pressure};
+use crate::pressure_unit::{AbsPressure, Pa, Pressure, msw};
 use crate::setup::{initialize_model_state, initialize_profile, set_m, LAST_STOP, NUM_TISSUES};
 use crate::time_utils::get_time_ms_rel;
 use crate::update::first_stop_depth;
@@ -31,7 +31,7 @@ pub enum ThalmannResult {
     },
 }
 
-pub const MVALUES_HE9_040: MVALUES = set_m(0);
+pub const MVALUES_HE9_040: MVALUES<Pa> = set_m(0);
 
 pub fn thalmann<P: Pressure, const NUM_GASES: usize>(
     loading: &mut TissuesLoading<NUM_TISSUES, Pa>,
@@ -91,7 +91,7 @@ where
             &TISSUES,
             m_values,
             &gases[current_gas],
-            current_depth,
+            current_depth.to_pa(),
             &duration,
         );
         let first_stop = first_stop_depth(&loading, m_values);
@@ -112,30 +112,35 @@ where
     }
 }
 
-type TissuesLoadingNumTissuesPa = TissuesLoading<NUM_TISSUES, Pa>;
+type TissuesLoadingNumTissues<P> = TissuesLoading<NUM_TISSUES, P>;
 
 pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
-    loading: &TissuesLoadingNumTissuesPa,
+    loading: &TissuesLoadingNumTissues<Pa>,
     gases: &[GasMix<f32>; NUM_GASES],
+    deco_settings: &DecoSettings<Pa>
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
-    calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES_HE9_040)
+    calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES_HE9_040, deco_settings)
+}
+
+pub struct DecoSettings<P: const AbsPressure>  {
+gas_density_settings: GasDensitySettings<P>,
+max_deco_po2: P,
 }
 
 fn calc_deco_schedule_intern<
     const NUM_TS: usize,
     const NUM_STOPS: usize,
     const NUM_GASES: usize,
+    P: const AbsPressure
 >(
-    loading: &TissuesLoading<NUM_TS, Pa>,
+    loading: &TissuesLoading<NUM_TS, P>,
     tissues: &[Tissue; NUM_TS],
     gases: &[GasMix<f32>; NUM_GASES],
-    m_values: &MVALUES,
+    m_values: &MVALUES<P>,
+    deco_settings: &DecoSettings<P>
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
     assert!(NUM_STOPS < NUM_STOP_DEPTHS);
 
-    let gas_density_settings: GasDensitySettings = GasDensitySettings::Limit {
-        limit: MAX_GAS_DENSITY,
-    };
 
     let mut loading = loading.clone();
     let mut stops: [Stop; NUM_STOPS] =
@@ -147,12 +152,12 @@ fn calc_deco_schedule_intern<
     }
     while let Some(stop_depth) = first_stop_depth(&loading, m_values) {
         let mix = best_available_mix(
-            MAX_PO2_DECO,
-            stop_depth,
+            deco_settings.max_deco_po2,
+            stop_depth.to_pa().into(),
             gases,
             &loading,
             false,
-            &gas_density_settings,
+            &deco_settings.gas_density_settings,
         );
         if mix.is_none() {
             return Err("No gas for depth.");
@@ -175,7 +180,7 @@ fn calc_deco_schedule_intern<
             tissues,
             &m_values,
             breathing_gas,
-            stop_depth,
+            stop_depth.to_pa().into(),
             &stop_duration,
         );
         stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(breathing_gas.clone()));

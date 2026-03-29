@@ -4,28 +4,25 @@ use num::Float;
 
 use crate::{
     depth_utils::get_depth_idx,
-    gas::{Gas, GasMix, TissuesLoading, HE_IDX, N2_IDX},
-    mptt::{Tissue, MVALUES},
-    pressure_unit::{msw, Pa, Pressure},
+    gas::{Gas, GasMix, HE_IDX, N2_IDX, TissuesLoading},
+    mptt::{MVALUES, Tissue},
+    pressure_unit::{AbsPressure, Pressure, msw},
     time_utils::max,
 };
 
 #[cfg(feature = "thalmann")]
-pub fn update_model_state_thalmann<P: Pressure, const NUM_TISSUES: usize>(
-    loading: &mut TissuesLoading<NUM_TISSUES, Pa>,
+pub fn update_model_state_thalmann<P: const AbsPressure, const NUM_TISSUES: usize>(
+    loading: &mut TissuesLoading<NUM_TISSUES, P>,
     tissues: &[Tissue; NUM_TISSUES],
-    &m_values: &MVALUES,
+    &m_values: &MVALUES<P>,
     breathing_gas: &GasMix<f32>,
     current_depth: P,
     delta_time: &Duration,
 ) {
-    use crate::pressure_unit::Bar;
-
     let delta_time_minutes: f32 = delta_time.as_secs_f32() / 60.0;
-    let current_depth: Pa = current_depth.to_pa();
 
-    let p_inspired_n2 = breathing_gas.pn2(current_depth).to_pa();
-    let p_inspired_he = breathing_gas.phe(current_depth).to_pa();
+    let p_inspired_n2 = breathing_gas.pn2(current_depth);
+    let p_inspired_he = breathing_gas.phe(current_depth);
 
     let k_values: [f32; NUM_TISSUES] = tissues.map(|t| (LN_2 / t.half_time) * t.sdr);
 
@@ -41,23 +38,23 @@ pub fn update_model_state_thalmann<P: Pressure, const NUM_TISSUES: usize>(
             let k: f32 = k_values[tissue_idx];
             // M-value for this tissue at this depth
             let depth_idx = get_depth_idx(current_depth);
-            let m_value: Bar = m_values[depth_idx].max_saturation[tissue_idx].to_bar();
+            let m_value = m_values[depth_idx].max_saturation[tissue_idx];
             // Crossover time
-            let t_x = -((m_value.to_pa() - p_inspired) / (p_old - p_inspired)).ln() / k;
+            let t_x: f32 = -((m_value - p_inspired) / (p_old - p_inspired)).ln() / k;
 
             let p_crossover = get_exp_pressure(p_inspired, p_old, k, t_x);
-            let r: Pa = (p_crossover - p_inspired) * k;
+            let r = (p_crossover - p_inspired) * k;
 
-            let p_new: Pa = if t_x >= delta_time_minutes {
+            let p_new = if t_x >= delta_time_minutes {
                 // Exponential phase only
                 get_exp_pressure(p_inspired, p_old, k, delta_time_minutes)
             } else if t_x <= 0.0 {
                 // Linear only
-                p_old - r.to_pa() * delta_time_minutes
+                p_old - r * delta_time_minutes
             } else {
                 // Split: exponential + linear
                 let t_lin: f32 = delta_time_minutes - t_x;
-                p_crossover.to_pa() - r.to_pa() * t_lin
+                p_crossover - r * t_lin
             };
             gas_loading[tissue_idx] = p_new;
         }
@@ -65,11 +62,11 @@ pub fn update_model_state_thalmann<P: Pressure, const NUM_TISSUES: usize>(
 }
 
 #[cfg(feature = "thalmann")]
-pub fn compute_stop_time_thalmann<const NUM_TISSUES: usize>(
-    loading: &TissuesLoading<NUM_TISSUES, Pa>,
+pub fn compute_stop_time_thalmann<const NUM_TISSUES: usize, P: const AbsPressure>(
+    loading: &TissuesLoading<NUM_TISSUES, P>,
     tissues: &[Tissue; NUM_TISSUES],
     breathing_gas: &GasMix<f32>,
-    m_values: &MVALUES,
+    m_values: &MVALUES<P>,
     stop_depth: msw,
 ) -> Duration {
     let stop_depth_pa = stop_depth.to_pa();
@@ -97,6 +94,8 @@ pub fn compute_stop_time_thalmann<const NUM_TISSUES: usize>(
                 continue; // tissue already safe
             }
 
+            let p_inspired: P = p_inspired.into();
+
             // exponential → linear
             let t_x = -((m_value - p_inspired) / (p_tissue - p_inspired)).ln() / k;
 
@@ -121,7 +120,7 @@ pub fn compute_stop_time_thalmann<const NUM_TISSUES: usize>(
     Duration::from_secs_f32(t_stop_mins * 60.0)
 }
 
-fn get_exp_pressure<P: const Pressure>(p_inspired: P, p_old: P, k: f32, t_x: f32) -> P {
+fn get_exp_pressure<P: const AbsPressure>(p_inspired: P, p_old: P, k: f32, t_x: f32) -> P {
     let exp: f32 = (-k * t_x).exp();
     p_inspired + (p_old - p_inspired) * exp
 }

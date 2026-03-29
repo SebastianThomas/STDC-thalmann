@@ -7,14 +7,10 @@ use num::Float;
 use num::ToPrimitive;
 
 use crate::pressure_unit::{msw, Pa, Pressure};
-use crate::setup::DINC;
+use crate::setup::{DINC, DINC_PA, MSW_0_PA};
 
 pub const fn get_depth(d_idx: usize) -> Pa {
-    if d_idx == 0 {
-        msw::new(0.0).to_pa()
-    } else {
-        (DINC * d_idx as f32).to_pa()
-    }
+    MSW_0_PA + DINC_PA * (d_idx as f32)
 }
 
 /**

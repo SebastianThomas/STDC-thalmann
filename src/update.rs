@@ -2,15 +2,15 @@ use core::time::Duration;
 
 use crate::{
     dive::{DiveMeasurement, DiveProfile},
-    gas::{TissuesLoading, AIR, HE_IDX, N2_IDX},
-    mptt::{Tissue, MVALUES},
-    pressure_unit::{msw, Pa},
+    gas::{AIR, HE_IDX, N2_IDX, TissuesLoading},
+    mptt::{MVALUES, Tissue},
+    pressure_unit::{AbsPressure, msw},
     thalmann::update_model_state,
 };
 
-pub fn first_stop_depth<const NUM_TISSUES: usize>(
-    p: &TissuesLoading<NUM_TISSUES, Pa>,
-    m_values: &MVALUES,
+pub fn first_stop_depth<const NUM_TISSUES: usize, P: const AbsPressure>(
+    p: &TissuesLoading<NUM_TISSUES, P>,
+    m_values: &MVALUES<P>,
 ) -> Option<msw> {
     for mvalues_at_depth in m_values.iter().rev() {
         for &gas_idx in [N2_IDX, HE_IDX].iter() {
@@ -33,17 +33,16 @@ pub fn loadings_from_dive_profile<
     const NUM_TISSUES: usize,
     const NUM_GASES: usize,
     const NUM_MEASUREMENTS: usize,
+    P: const AbsPressure
 >(
     tissues: &[Tissue; NUM_TISSUES],
-    profile: &DiveProfile<Pa, f32, NUM_GASES, NUM_MEASUREMENTS>,
-    m_values: &MVALUES,
-    surface: Pa,
-) -> TissuesLoading<NUM_TISSUES, Pa> {
+    profile: &DiveProfile<P, f32, NUM_GASES, NUM_MEASUREMENTS>,
+    m_values: &MVALUES<P>,
+    surface: P,
+) -> TissuesLoading<NUM_TISSUES, P> {
     let mut loadings = TissuesLoading::new(surface, &AIR);
     for w in profile.measurements.windows(2) {
-        if w.len() != 2 {
-            panic!("Windows does not do what I expect");
-        }
+        assert!(w.len() != 2);
         let DiveMeasurement {
             time_ms: time_ms_prev,
             depth: depth_prev,

@@ -5,24 +5,24 @@ pub use crate::depth_utils::get_ascent_rate_per_meter;
 use crate::{
     depth_utils::{get_ascent_time, get_depth},
     gas::{self, GasMix},
-    pressure_unit::{msw, Pa, Pressure},
+    pressure_unit::{AbsPressure, Pressure, msw},
 };
 
 use num::Float;
 
 #[derive(Debug, Clone)]
-pub struct DiveMeasurement {
+pub struct DiveMeasurement<P: const AbsPressure> {
     pub time_ms: usize,
-    pub depth: Pa,
+    pub depth: P,
     pub gas: usize,
 }
 
 #[derive(Debug, Clone)]
-pub struct DiveProfile<P: Pressure, F: Float, const G: usize, const M: usize> {
+pub struct DiveProfile<P: const AbsPressure, F: Float, const G: usize, const M: usize> {
     pub dive_id: usize,
     pub max_depth: P,
     pub gases: [gas::GasMix<F>; G],
-    pub measurements: [DiveMeasurement; M],
+    pub measurements: [DiveMeasurement<P>; M],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -115,7 +115,7 @@ impl<const NUM_STOPS: usize> StopSchedule<NUM_STOPS> {
                 "First stop must be still outstanding to get time to deco. Otherwise, use 0",
             );
         }
-        let diff = current_depth - first_stop;
+        let diff = msw::new(current_depth.to_msw().to_f32() - first_stop.to_msw().to_f32());
         return Ok(get_ascent_time(diff, max_ascent_rate_per_meter));
     }
 }

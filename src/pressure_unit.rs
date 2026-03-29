@@ -9,15 +9,7 @@ use core::prelude::rust_2024::derive;
 
 /// Common trait for all pressure units
 pub const trait Pressure:
-    Copy
-    + Clone
-    + Debug
-    + PartialEq
-    + PartialOrd
-    + const Add<Self, Output = Self>
-    + const Sub<Self, Output = Self>
-    + const Mul<f32, Output = Self>
-    + const Div<f32, Output = Self>
+    Copy + Clone + Debug + const PartialEq + const PartialOrd
 {
     fn to_pa(self) -> Pa;
     fn to_kpa(self) -> kPa;
@@ -27,11 +19,23 @@ pub const trait Pressure:
     fn to_f32(self) -> f32;
 }
 
+pub const trait AbsPressure:
+    const Pressure
+    + const From<Pa>
+    + const Add<Self, Output = Self>
+    + const Sub<Self, Output = Self>
+    + const Mul<f32, Output = Self>
+    + const Div<f32, Output = Self>
+    + const Div<Self, Output = f32>
+{
+}
+
 /// Macro to generate pressure unit newtypes + trait impl + arithmetic
 macro_rules! pressure_unit {
     ($name:ident, $to_pa_factor:expr) => {
         #[allow(non_camel_case_types)]
-        #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+        #[derive(Copy, Clone, Debug)]
+        #[derive_const(PartialEq, PartialOrd)]
         pub struct $name(f32);
 
         impl $name {
@@ -40,6 +44,7 @@ macro_rules! pressure_unit {
             }
         }
 
+        impl const AbsPressure for $name {}
         impl const Pressure for $name {
             fn to_pa(self) -> Pa {
                 Pa(self.0 * $to_pa_factor)
@@ -110,7 +115,8 @@ macro_rules! pressure_unit {
 macro_rules! pressure_unit_relative {
     ($name:ident, $to_pa_factor:expr) => {
         #[allow(non_camel_case_types)]
-        #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+        #[derive(Copy, Clone, Debug)]
+        #[derive_const(PartialEq, PartialOrd)]
         pub struct $name(pub f32);
 
         impl $name {
@@ -146,38 +152,6 @@ macro_rules! pressure_unit_relative {
                 $name(v)
             }
         }
-
-        /// Arithmetic
-        impl const Add for $name {
-            type Output = $name;
-            fn add(self, rhs: $name) -> $name {
-                $name(self.0 + rhs.0)
-            }
-        }
-        impl const Sub for $name {
-            type Output = $name;
-            fn sub(self, rhs: $name) -> $name {
-                $name(self.0 - rhs.0)
-            }
-        }
-        impl const Mul<f32> for $name {
-            type Output = $name;
-            fn mul(self, rhs: f32) -> $name {
-                $name(self.0 * rhs)
-            }
-        }
-        impl const Mul<usize> for $name {
-            type Output = $name;
-            fn mul(self, rhs: usize) -> $name {
-                $name(self.0 * rhs as f32)
-            }
-        }
-        impl const Div<f32> for $name {
-            type Output = $name;
-            fn div(self, rhs: f32) -> $name {
-                $name(self.0 / rhs)
-            }
-        }
     };
 }
 
@@ -188,6 +162,50 @@ pressure_unit!(kPa, 1000.0);
 pressure_unit!(Bar, 100_000.0);
 pressure_unit_relative!(msw, 1.013E4);
 pressure_unit_relative!(fsw, 3064.30593138);
+
+// -------------------- From<Pa> implementations --------------------
+impl const From<Pa> for hPa {
+    fn from(value: Pa) -> Self {
+        Self(value.0 / 100.0)
+    }
+}
+impl const From<Pa> for kPa {
+    fn from(value: Pa) -> Self {
+        Self(value.0 / 1000.0)
+    }
+}
+impl const From<Pa> for Bar {
+    fn from(value: Pa) -> Self {
+        Self(value.0 / 100_000.0)
+    }
+}
+impl const From<Pa> for msw {
+    fn from(value: Pa) -> Self {
+        Self((value.0 - 1E5) / 1.013E4)
+    }
+}
+impl const From<Pa> for fsw {
+    fn from(value: Pa) -> Self {
+        Self((value.0 - 1E5) / 3064.30593138)
+    }
+}
+
+impl const From<hPa> for Pa {
+    fn from(value: hPa) -> Self {
+        Self(value.0 * 100.0)
+    }
+}
+impl const From<kPa> for Pa {
+    fn from(value: kPa) -> Self {
+        Self(value.0 * 1000.0)
+    }
+}
+impl const From<Bar> for Pa {
+    fn from(value: Bar) -> Self {
+        Self(value.0 * 100_000.0)
+    }
+}
+
 #[allow(non_camel_case_types)]
 pub type mBar = hPa; // alias
 
@@ -199,7 +217,7 @@ mod tests {
     fn imp_metric_test() {
         assert_eq!(fsw::new(0.0).to_msw(), msw::new(0.0));
         assert_eq!(
-            msw::new(10.0) - fsw::new(33.0).to_msw() < msw::new(0.02),
+            msw::new(10.0).to_f32() - fsw::new(33.0).to_msw().to_f32() < msw::new(0.02).to_f32(),
             true
         );
     }

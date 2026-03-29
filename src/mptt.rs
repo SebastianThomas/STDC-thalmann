@@ -1,4 +1,4 @@
-use crate::pressure_unit::{fsw, msw, Pa, Pressure};
+use crate::pressure_unit::{AbsPressure, Pa, Pressure, fsw, msw};
 
 #[derive(Copy, Clone)]
 pub struct Tissue {
@@ -7,14 +7,14 @@ pub struct Tissue {
 }
 
 #[derive(Copy, Clone)]
-pub struct TissueRow<const TISSUES: usize> {
+pub struct TissueRow<const TISSUES: usize, P: const AbsPressure> {
     pub depth: msw,
-    pub max_saturation: [Pa; TISSUES],
+    pub max_saturation: [P; TISSUES],
 }
 
 pub const NUM_TISSUES: usize = 5;
 pub const NUM_STOP_DEPTHS: usize = 32;
-pub type MVALUES = [TissueRow<NUM_TISSUES>; NUM_STOP_DEPTHS];
+pub type MVALUES<P: const AbsPressure> = [TissueRow<NUM_TISSUES, P>; NUM_STOP_DEPTHS];
 
 pub const TISSUES: [Tissue; NUM_TISSUES] = [
     Tissue {
@@ -40,7 +40,7 @@ pub const TISSUES: [Tissue; NUM_TISSUES] = [
 ];
 
 // TODO: Maybe allow f64?
-pub const XVAL_HE9_040_F32: MVALUES = [
+pub const XVAL_HE9_040_F32: MVALUES<Pa> = [
     // XVAL-HE-9_040 (MSW)
     // Half-times (mins)
     //      10 20 20 120 200

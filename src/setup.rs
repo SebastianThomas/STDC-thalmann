@@ -1,9 +1,12 @@
-use crate::mptt::{TissueRow, XVAL_HE9_040_F32};
+use crate::{mptt::{TissueRow, XVAL_HE9_040_F32}, pressure_unit::Pa};
 pub use crate::mptt::{MVALUES, NUM_TISSUES};
 use crate::pressure_unit::{msw, Pressure};
 
+pub const MSW_0_PA: Pa = msw::new(0.0).to_pa();
+
 // Depth Increment
 pub const DINC: msw = msw::new(3.0);
+pub const DINC_PA: Pa = DINC.to_pa() - MSW_0_PA;
 // IDX * DINC
 pub const LAST_STOP: msw = msw::new(6.0);
 
@@ -18,7 +21,7 @@ pub struct ModelState {
     // previous_tt: f32,                        // TT0
 }
 
-pub const fn set_m(mode: u8) -> MVALUES {
+pub const fn set_m(mode: u8) -> MVALUES<Pa> {
     if mode == 0 || mode != 1 {
         return XVAL_HE9_040_F32;
     }

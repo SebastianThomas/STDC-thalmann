@@ -7,6 +7,9 @@
 #![feature(const_ops)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
+#![feature(const_convert)]
+#![feature(const_cmp)]
+#![feature(derive_const)]
 
 mod depth_utils;
 pub mod display_utils;
