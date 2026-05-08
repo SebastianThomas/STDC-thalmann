@@ -40,6 +40,7 @@ pub const TISSUES: [Tissue; NUM_TISSUES] = [
 ];
 
 // TODO: Maybe allow f64?
+/** Maximum Permissible Tissue Tension */
 pub const XVAL_HE9_040_F32: MVALUES<Pa> = [
     // XVAL-HE-9_040 (MSW)
     // Half-times (mins)

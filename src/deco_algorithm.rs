@@ -19,7 +19,7 @@ pub use crate::update_exp_lin::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ThalmannResult {
+pub enum DecoAlgorithmResult {
     FinishedResult {
         iterations: usize,
         reason: &'static str,
@@ -31,16 +31,16 @@ pub enum ThalmannResult {
 
 pub const MVALUES_HE9_040: MVALUES<Pa> = set_m(0);
 
-pub fn thalmann<P: Pressure, const NUM_GASES: usize>(
+pub fn compute_deco_algorithm<P: Pressure, const NUM_GASES: usize>(
     loading: &mut TissuesLoading<NUM_TISSUES, Pa>,
     max_depth: P,
     gases: &[GasMix<f32>; NUM_GASES],
-) -> ThalmannResult
+) -> DecoAlgorithmResult
 where
     [(); NUM_GASES - 1]:,
 {
     if max_depth.to_msw() < LAST_STOP {
-        return ThalmannResult::ErrorResult {
+        return DecoAlgorithmResult::ErrorResult {
             reason: "Maximum depth is shallower than the last stop.",
         };
     }
@@ -76,7 +76,7 @@ where
 
         let current_depth = current_maximum_allowed_depth; // TODO: Measure actual depth
         if current_maximum_allowed_depth.to_msw().to_f32() <= 0.0 {
-            return ThalmannResult::FinishedResult {
+            return DecoAlgorithmResult::FinishedResult {
                 iterations: iter_count,
                 reason: "Current maximum allowed depth Smaller than 0",
             };
@@ -94,7 +94,7 @@ where
         );
         let first_stop = first_stop_depth(&loading, m_values);
         if first_stop.is_none() {
-            return ThalmannResult::FinishedResult {
+            return DecoAlgorithmResult::FinishedResult {
                 iterations: iter_count,
                 reason: "No First Stop remaining",
             };

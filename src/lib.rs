@@ -16,14 +16,15 @@ pub mod display_utils;
 pub mod dive;
 pub mod gas;
 pub mod mptt;
+pub mod o2tox;
 pub mod pressure_unit;
 mod setup;
-pub mod thalmann;
+pub mod deco_algorithm;
 mod time_utils;
 mod update;
 mod update_exp;
-mod update_thalmann;
+mod update_exp_lin;
 
 pub use setup::{DINC, LAST_STOP};
-pub use thalmann::{calc_deco_schedule, thalmann, ThalmannResult, MVALUES_HE9_040};
+pub use deco_algorithm::{MVALUES_HE9_040, DecoAlgorithmResult, calc_deco_schedule, compute_deco_algorithm};
 pub use update::loadings_from_dive_profile;

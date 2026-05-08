@@ -5,7 +5,7 @@ use crate::{
     gas::{AIR, HE_IDX, N2_IDX, TissuesLoading},
     mptt::{MVALUES, Tissue},
     pressure_unit::{AbsPressure, msw},
-    thalmann::update_model_state,
+    deco_algorithm::update_model_state,
 };
 
 pub fn first_stop_depth<const NUM_TISSUES: usize, P: const AbsPressure>(
