@@ -2,8 +2,8 @@ use core::time::Duration;
 
 use num::pow::Pow;
 
+use crate::dive::DiveProfile;
 use crate::pressure_unit::{AbsPressure, Bar, Pressure};
-use crate::dive::{DiveProfile, DiveMeasurement};
 
 pub enum O2ToxCalculation {
     /** */
@@ -185,10 +185,10 @@ fn oti<P: const Pressure>(po2: P, time: f32, c: f32) -> f32 {
 }
 
 /// Calculates cumulative CNS and pulmonary oxygen toxicity percentages from a dive profile.
-/// 
+///
 /// Iterates through all measurements in the profile and accumulates exposure at each depth,
 /// calculating the percentage of maximum allowed exposure time at each point.
-/// 
+///
 /// # Arguments
 /// * `profile` - The dive profile to process
 /// * `exposure_type` - The type of exposure (Single or Daily24h)
@@ -203,21 +203,27 @@ pub fn calculate_toxicity_from_profile<
     calculation_method: O2ToxCalculation,
 ) -> O2ToxicityPercentage {
     let initial_toxicity = O2ToxicityPercentage::new(0.0, 0.0);
-    calculate_toxicity_diff(profile, 0, &initial_toxicity, exposure_type, calculation_method)
+    calculate_toxicity_diff(
+        profile,
+        0,
+        &initial_toxicity,
+        exposure_type,
+        calculation_method,
+    )
 }
 
 /// Calculates differential (incremental) toxicity from a specific measurement index onwards.
-/// 
+///
 /// Takes the previous toxicity percentage and processes measurements from start_index forward.
 /// This is useful for real-time monitoring where new measurements arrive incrementally.
-/// 
+///
 /// # Arguments
 /// * `profile` - The dive profile to process
 /// * `start_index` - The measurement index to start from (0-based)
 /// * `previous_toxicity` - The accumulated toxicity percentage before this segment
 /// * `exposure_type` - The type of exposure (Single or Daily24h)
 /// * `calculation_method` - The limits calculation method (NOAA or RevisedDHM2025)
-/// 
+///
 /// # Returns
 /// The new cumulative O2ToxicityPercentage including all measurements from start_index onwards
 pub fn calculate_toxicity_diff<
@@ -245,7 +251,9 @@ pub fn calculate_toxicity_diff<
         let prev_measurement = &measurements[i];
         let curr_measurement = &measurements[i + 1];
 
-        let delta_time_ms = curr_measurement.time_ms.saturating_sub(prev_measurement.time_ms);
+        let delta_time_ms = curr_measurement
+            .time_ms
+            .saturating_sub(prev_measurement.time_ms);
         let delta_time = Duration::from_millis(delta_time_ms as u64);
 
         // Use current depth
@@ -287,8 +295,9 @@ pub fn calculate_toxicity_diff<
 
 #[cfg(test)]
 mod tests {
-    use crate::pressure_unit::Bar;
+    use crate::dive::DiveMeasurement;
     use crate::gas::GasMix;
+    use crate::pressure_unit::Bar;
 
     use super::*;
 
@@ -399,9 +408,9 @@ mod tests {
     fn o2_exposure_limit_safe_test() {
         // Test safe exposure limits
         let safe_cases = [
-            (1.0, O2ExposureType::Single),    // 300 min limit
-            (0.8, O2ExposureType::Daily24h),  // 450 min limit
-            (1.3, O2ExposureType::Daily24h),  // 210 min limit
+            (1.0, O2ExposureType::Single),   // 300 min limit
+            (0.8, O2ExposureType::Daily24h), // 450 min limit
+            (1.3, O2ExposureType::Daily24h), // 210 min limit
         ];
 
         for (po2_bar, exposure_type) in &safe_cases {
@@ -449,9 +458,7 @@ mod tests {
 
     #[test]
     fn o2_exposure_limit_unsafe_test() {
-        let unsafe_cases = [
-            2.1, 2.5, 3.0, 5.0,
-        ];
+        let unsafe_cases = [2.1, 2.5, 3.0, 5.0];
 
         for po2_bar in &unsafe_cases {
             let po2 = Bar::new(*po2_bar);
@@ -473,16 +480,16 @@ mod tests {
         let measurements = [
             DiveMeasurement {
                 time_ms: 0,
-                depth: Bar::new(2.0),      // 10m depth
+                depth: Bar::new(2.0), // 10m depth
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 300_000,          // 5 minutes at safe depth
+                time_ms: 300_000, // 5 minutes at safe depth
                 depth: Bar::new(2.0),
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 600_000,          // Another 5 minutes
+                time_ms: 600_000, // Another 5 minutes
                 depth: Bar::new(2.0),
                 gas: 0,
             },
@@ -496,7 +503,11 @@ mod tests {
             measurements,
         };
 
-        let toxicity = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let toxicity = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         assert!(
             toxicity.cns_percent >= 0.0,
@@ -508,11 +519,13 @@ mod tests {
         );
         assert!(
             toxicity.cns_percent < 30.0,
-            "CNS should be reasonable for safe dive: got {}", toxicity.cns_percent
+            "CNS should be reasonable for safe dive: got {}",
+            toxicity.cns_percent
         );
         assert!(
             toxicity.pulmonary_percent < 30.0,
-            "CNS should be reasonable for safe dive: got {}", toxicity.cns_percent
+            "CNS should be reasonable for safe dive: got {}",
+            toxicity.cns_percent
         );
     }
 
@@ -527,12 +540,12 @@ mod tests {
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 300_000,          // 5 minutes at exceptional limit PO2
+                time_ms: 300_000, // 5 minutes at exceptional limit PO2
                 depth: Bar::new(1.8),
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 600_000,          // Another 5 minutes
+                time_ms: 600_000, // Another 5 minutes
                 depth: Bar::new(1.8),
                 gas: 0,
             },
@@ -546,15 +559,21 @@ mod tests {
             measurements,
         };
 
-        let toxicity = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let toxicity = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         assert!(
             toxicity.cns_percent > 20.0,
-            "CNS should be elevated for exceptional limit exposure: got {}", toxicity.cns_percent
+            "CNS should be elevated for exceptional limit exposure: got {}",
+            toxicity.cns_percent
         );
         assert!(
             toxicity.pulmonary_percent > 20.0,
-            "Pulmonary should be elevated for exceptional limit exposure: got {}", toxicity.pulmonary_percent
+            "Pulmonary should be elevated for exceptional limit exposure: got {}",
+            toxicity.pulmonary_percent
         );
     }
 
@@ -566,11 +585,11 @@ mod tests {
         let measurements = [
             DiveMeasurement {
                 time_ms: 0,
-                depth: Bar::new(2.5),      // Unsafe PO2
+                depth: Bar::new(2.5), // Unsafe PO2
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 10_000,           // Just 10 seconds
+                time_ms: 10_000, // Just 10 seconds
                 depth: Bar::new(2.5),
                 gas: 0,
             },
@@ -584,7 +603,11 @@ mod tests {
             measurements,
         };
 
-        let toxicity = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let toxicity = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         // Unsafe exposure should immediately spike toxicity percentages
         assert!(
@@ -610,12 +633,12 @@ mod tests {
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 300_000,          // 5 minutes
+                time_ms: 300_000, // 5 minutes
                 depth: Bar::new(2.0),
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 600_000,          // Another 5 minutes
+                time_ms: 600_000, // Another 5 minutes
                 depth: Bar::new(2.0),
                 gas: 0,
             },
@@ -630,12 +653,22 @@ mod tests {
         };
 
         // Full calculation
-        let full_result = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let full_result = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         // Simulate streaming:
         // The differential function processes from start_index to end of profile
         let initial = O2ToxicityPercentage::new(0.0, 0.0);
-        let from_start = calculate_toxicity_diff(&profile, 0, &initial, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let from_start = calculate_toxicity_diff(
+            &profile,
+            0,
+            &initial,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         // Results should match since we process from beginning
         assert!(
@@ -660,17 +693,17 @@ mod tests {
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 300_000,          // 5 minutes
+                time_ms: 300_000, // 5 minutes
                 depth: Bar::new(2.0),
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 600_000,          // Another 5 minutes
+                time_ms: 600_000, // Another 5 minutes
                 depth: Bar::new(1.8),
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 900_000,          // Another 5 minutes
+                time_ms: 900_000, // Another 5 minutes
                 depth: Bar::new(1.8),
                 gas: 0,
             },
@@ -685,11 +718,21 @@ mod tests {
         };
 
         // Calculate full profile
-        let full_result = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let full_result = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         // Calculate first half (indices 0 and 1)
         let initial = O2ToxicityPercentage::new(0.0, 0.0);
-        let first_half = calculate_toxicity_diff(&profile, 0, &initial, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let first_half = calculate_toxicity_diff(
+            &profile,
+            0,
+            &initial,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         assert!(
             (full_result.cns_percent - first_half.cns_percent).abs() < 0.01,
@@ -728,17 +771,21 @@ mod tests {
         let initial = O2ToxicityPercentage::new(42.5, 35.0);
 
         // Try to start from beyond the profile
-        let result = calculate_toxicity_diff(&profile, 10, &initial, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let result = calculate_toxicity_diff(
+            &profile,
+            10,
+            &initial,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         // Should return the initial toxicity unchanged
         assert_eq!(
-            result.cns_percent,
-            initial.cns_percent,
+            result.cns_percent, initial.cns_percent,
             "Invalid index should return previous toxicity"
         );
         assert_eq!(
-            result.pulmonary_percent,
-            initial.pulmonary_percent,
+            result.pulmonary_percent, initial.pulmonary_percent,
             "Invalid index should return previous toxicity"
         );
     }
@@ -752,11 +799,11 @@ mod tests {
         let measurements = [
             DiveMeasurement {
                 time_ms: 0,
-                depth: Bar::new(2.3),      // ~1.3 bar PO2 with air
+                depth: Bar::new(2.3), // ~1.3 bar PO2 with air
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 600_000,          // 10 minutes
+                time_ms: 600_000, // 10 minutes
                 depth: Bar::new(2.3),
                 gas: 0,
             },
@@ -771,8 +818,16 @@ mod tests {
         };
 
         // Calculate with both methods
-        let noaa_result = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
-        let revised_result = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::RevisedDHM2025);
+        let noaa_result = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
+        let revised_result = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::RevisedDHM2025,
+        );
 
         // Both should be valid calculations
         assert!(
@@ -797,12 +852,12 @@ mod tests {
         let measurements = [
             DiveMeasurement {
                 time_ms: 0,
-                depth: Bar::new(2.3),      // Surface equivalent with nitrox
+                depth: Bar::new(2.3), // Surface equivalent with nitrox
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 900_000,          // 15 minutes
-                depth: Bar::new(2.3),      // ~1.3 bar PO2 with oxygen
+                time_ms: 900_000,     // 15 minutes
+                depth: Bar::new(2.3), // ~1.3 bar PO2 with oxygen
                 gas: 0,
             },
         ];
@@ -815,8 +870,16 @@ mod tests {
             measurements,
         };
 
-        let noaa = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
-        let revised = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::RevisedDHM2025);
+        let noaa = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
+        let revised = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::RevisedDHM2025,
+        );
 
         // At 1.3 bar, Revised DHM 2025 allows 240 min vs NOAA's 180 min
         // So for a 15 minute exposure, Revised should show lower percentage
@@ -838,12 +901,12 @@ mod tests {
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 300_000,          // 5 minutes
+                time_ms: 300_000, // 5 minutes
                 depth: Bar::new(2.0),
                 gas: 0,
             },
             DiveMeasurement {
-                time_ms: 600_000,          // Another 5 minutes
+                time_ms: 600_000, // Another 5 minutes
                 depth: Bar::new(2.0),
                 gas: 0,
             },
@@ -858,9 +921,19 @@ mod tests {
         };
 
         // Test with NOAA
-        let noaa_full = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let noaa_full = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
         let initial = O2ToxicityPercentage::new(0.0, 0.0);
-        let noaa_diff = calculate_toxicity_diff(&profile, 0, &initial, &O2ExposureType::Single, O2ToxCalculation::NOAA);
+        let noaa_diff = calculate_toxicity_diff(
+            &profile,
+            0,
+            &initial,
+            &O2ExposureType::Single,
+            O2ToxCalculation::NOAA,
+        );
 
         assert!(
             (noaa_full.cns_percent - noaa_diff.cns_percent).abs() < 0.01,
@@ -868,8 +941,18 @@ mod tests {
         );
 
         // Test with Revised DHM 2025
-        let revised_full = calculate_toxicity_from_profile(&profile, &O2ExposureType::Single, O2ToxCalculation::RevisedDHM2025);
-        let revised_diff = calculate_toxicity_diff(&profile, 0, &initial, &O2ExposureType::Single, O2ToxCalculation::RevisedDHM2025);
+        let revised_full = calculate_toxicity_from_profile(
+            &profile,
+            &O2ExposureType::Single,
+            O2ToxCalculation::RevisedDHM2025,
+        );
+        let revised_diff = calculate_toxicity_diff(
+            &profile,
+            0,
+            &initial,
+            &O2ExposureType::Single,
+            O2ToxCalculation::RevisedDHM2025,
+        );
 
         assert!(
             (revised_full.cns_percent - revised_diff.cns_percent).abs() < 0.01,
