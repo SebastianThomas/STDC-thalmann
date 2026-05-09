@@ -2,7 +2,8 @@ use core::time::Duration;
 
 use num::pow::Pow;
 
-use crate::dive::DiveProfile;
+use crate::dive::{DiveMeasurement, DiveProfile};
+use crate::gas::GasMix;
 use crate::pressure_unit::{AbsPressure, Bar, Pressure};
 
 pub enum O2ToxCalculation {
@@ -204,7 +205,8 @@ pub fn calculate_toxicity_from_profile<
 ) -> O2ToxicityPercentage {
     let initial_toxicity = O2ToxicityPercentage::new(0.0, 0.0);
     calculate_toxicity_diff(
-        profile,
+        &profile.measurements,
+        &profile.gases,
         0,
         &initial_toxicity,
         exposure_type,
@@ -231,7 +233,8 @@ pub fn calculate_toxicity_diff<
     const NUM_MEASUREMENTS: usize,
     P: const AbsPressure,
 >(
-    profile: &DiveProfile<P, f32, NUM_GASES, NUM_MEASUREMENTS>,
+    measurements: &[DiveMeasurement<P>; NUM_MEASUREMENTS],
+    gases: &[GasMix<f32>; NUM_GASES],
     start_index: usize,
     previous_toxicity: &O2ToxicityPercentage,
     exposure_type: &O2ExposureType,
@@ -241,12 +244,11 @@ pub fn calculate_toxicity_diff<
     let mut pulmonary_percent = previous_toxicity.pulmonary_percent;
 
     // Need at least one measurement after start_index to process
-    if start_index >= profile.measurements.len().saturating_sub(1) {
+    if start_index >= measurements.len().saturating_sub(1) {
         return O2ToxicityPercentage::new(cns_percent, pulmonary_percent);
     }
 
-    // Process from start_index to the end
-    let measurements = &profile.measurements;
+    let measurements = &measurements;
     for i in start_index..measurements.len().saturating_sub(1) {
         let prev_measurement = &measurements[i];
         let curr_measurement = &measurements[i + 1];
@@ -258,7 +260,7 @@ pub fn calculate_toxicity_diff<
 
         // Use current depth
         let depth = curr_measurement.depth;
-        let gas_mix = &profile.gases[curr_measurement.gas];
+        let gas_mix = &gases[curr_measurement.gas];
 
         // Calculate PO2 at current depth
         let abs_pressure = depth.to_pa();
@@ -663,7 +665,8 @@ mod tests {
         // The differential function processes from start_index to end of profile
         let initial = O2ToxicityPercentage::new(0.0, 0.0);
         let from_start = calculate_toxicity_diff(
-            &profile,
+            &profile.measurements,
+            &profile.gases,
             0,
             &initial,
             &O2ExposureType::Single,
@@ -727,7 +730,8 @@ mod tests {
         // Calculate first half (indices 0 and 1)
         let initial = O2ToxicityPercentage::new(0.0, 0.0);
         let first_half = calculate_toxicity_diff(
-            &profile,
+            &profile.measurements,
+            &profile.gases,
             0,
             &initial,
             &O2ExposureType::Single,
@@ -772,7 +776,8 @@ mod tests {
 
         // Try to start from beyond the profile
         let result = calculate_toxicity_diff(
-            &profile,
+            &profile.measurements,
+            &profile.gases,
             10,
             &initial,
             &O2ExposureType::Single,
@@ -928,7 +933,8 @@ mod tests {
         );
         let initial = O2ToxicityPercentage::new(0.0, 0.0);
         let noaa_diff = calculate_toxicity_diff(
-            &profile,
+            &profile.measurements,
+            &profile.gases,
             0,
             &initial,
             &O2ExposureType::Single,
@@ -947,7 +953,8 @@ mod tests {
             O2ToxCalculation::RevisedDHM2025,
         );
         let revised_diff = calculate_toxicity_diff(
-            &profile,
+            &profile.measurements,
+            &profile.gases,
             0,
             &initial,
             &O2ExposureType::Single,
