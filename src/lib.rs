@@ -19,7 +19,9 @@ pub mod display_utils;
 pub mod dive;
 pub mod gas;
 pub mod mptt;
+#[cfg(not(feature = "lin_exp"))]
 mod mptt_buehlmann;
+#[cfg(feature = "lin_exp")]
 mod mptt_thalmann;
 pub mod o2tox;
 pub mod pressure_unit;
