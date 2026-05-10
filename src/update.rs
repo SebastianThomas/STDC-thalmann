@@ -33,7 +33,6 @@ pub fn first_stop_depth<P: const AbsPressure>(
 
 pub fn loadings_from_dive_profile<
     const NUM_TISSUES: usize,
-    const NUM_STOP_DEPTHS: usize,
     const NUM_GASES: usize,
     const NUM_MEASUREMENTS: usize,
     P: const AbsPressure,
