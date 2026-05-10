@@ -7,7 +7,7 @@ use crate::gas::GasMix;
 use crate::pressure_unit::{AbsPressure, Bar, Pressure};
 
 pub enum O2ToxCalculation {
-    /** */
+    /** NOAA Limits */
     NOAA,
     /** https://pmc.ncbi.nlm.nih.gov/articles/PMC12500339/
      *  for 1.3 bar PO2
@@ -114,9 +114,10 @@ fn noaa_o2_limit(po2: Bar, exposure: &O2ExposureType) -> O2ExposureLimit {
         _ => 0,
     };
     if mins != 0 {
-        return O2ExposureLimit::ExeptionalLimit(Duration::from_mins(mins));
+        O2ExposureLimit::ExeptionalLimit(Duration::from_mins(mins))
+    } else {
+        O2ExposureLimit::Unsafe
     }
-    return O2ExposureLimit::Unsafe;
 }
 
 /** https://doi.org/10.28920/dhm55.3.262-270 */

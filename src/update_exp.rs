@@ -1,16 +1,16 @@
-#[cfg(not(feature = "thalmann"))]
+#[cfg(not(feature = "lin_exp"))]
 use core::{f32::consts::LN_2, time::Duration};
 
-#[cfg(not(feature = "thalmann"))]
+#[cfg(not(feature = "lin_exp"))]
 use crate::{
     depth_utils::get_depth_idx,
-    gas::{GasMix, TissuesLoading, HE_IDX, N2_IDX},
-    mptt::{Tissue, MVALUES, NUM_TISSUES},
-    pressure_unit::{msw, Pa, Pressure},
+    gas::{GasMix, HE_IDX, N2_IDX, TissuesLoading},
+    mptt::{MVALUES, NUM_TISSUES, Tissue},
+    pressure_unit::{Pa, Pressure, msw},
     time_utils::max,
 };
 
-#[cfg(not(feature = "thalmann"))]
+#[cfg(not(feature = "lin_exp"))]
 /**
 * Schreiner Update:
 * P(t) = P_{inspired} + (P_0 - P_{inspired}) * e^{-kt}
@@ -49,7 +49,7 @@ pub fn update_model_state_exp<P: Pressure>(
     }
 }
 
-#[cfg(not(feature = "thalmann"))]
+#[cfg(not(feature = "lin_exp"))]
 /**
 * P_{tissue}(t) = P_{inspired} + (P_{tissue,gas} - P_{inspired}) * e^{-kt}
 * t_{tissue} = -1/k * ln((M - P_{inspired}) / (P_{tissue,gas} - P_{inspired}))

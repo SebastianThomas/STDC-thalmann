@@ -2,19 +2,21 @@ use core::{f32::consts::LN_2, time::Duration};
 #[allow(unused)]
 use num::Float;
 
+#[cfg(feature = "lin_exp")]
+use crate::deco_algorithm::MValues;
 use crate::{
     depth_utils::get_depth_idx,
     gas::{Gas, GasMix, HE_IDX, N2_IDX, TissuesLoading},
-    mptt::{MVALUES, Tissue},
+    mptt::Tissue,
     pressure_unit::{AbsPressure, Pressure, msw},
     time_utils::max,
 };
 
-#[cfg(feature = "thalmann")]
-pub fn update_model_state_thalmann<P: const AbsPressure, const NUM_TISSUES: usize>(
+#[cfg(feature = "lin_exp")]
+pub fn update_model_state_lin_exp<P: const AbsPressure, const NUM_TISSUES: usize>(
     loading: &mut TissuesLoading<NUM_TISSUES, P>,
     tissues: &[Tissue; NUM_TISSUES],
-    &m_values: &MVALUES<P>,
+    &m_values: &MValues<P>,
     breathing_gas: &GasMix<f32>,
     current_depth: P,
     delta_time: &Duration,
@@ -61,12 +63,12 @@ pub fn update_model_state_thalmann<P: const AbsPressure, const NUM_TISSUES: usiz
     }
 }
 
-#[cfg(feature = "thalmann")]
-pub fn compute_stop_time_thalmann<const NUM_TISSUES: usize, P: const AbsPressure>(
+#[cfg(feature = "lin_exp")]
+pub fn compute_stop_time_lin_exp<const NUM_TISSUES: usize, P: const AbsPressure>(
     loading: &TissuesLoading<NUM_TISSUES, P>,
     tissues: &[Tissue; NUM_TISSUES],
     breathing_gas: &GasMix<f32>,
-    m_values: &MVALUES<P>,
+    m_values: &MValues<P>,
     stop_depth: msw,
 ) -> Duration {
     let stop_depth_pa = stop_depth.to_pa();

@@ -1,6 +1,17 @@
-use crate::{mptt::{TissueRow, XVAL_HE9_040_F32}, pressure_unit::Pa};
-pub use crate::mptt::{MVALUES, NUM_TISSUES};
-use crate::pressure_unit::{msw, Pressure};
+#[cfg(not(feature = "lin_exp"))]
+pub use crate::mptt_buehlmann::{
+    BUEHLMANN_16C as MVALUES_TISSUES, NUM_STOP_DEPTHS_BUEHLMANN as NUM_STOP_DEPTHS,
+    NUM_TISSUES_BUEHLMANN as NUM_TISSUES,
+};
+#[cfg(feature = "lin_exp")]
+pub use crate::mptt_thalmann::{
+    NUM_STOP_DEPTHS_THALMANN as NUM_STOP_DEPTHS, NUM_TISSUES_THALMANN as NUM_TISSUES,
+    XVAL_HE9_040_F32 as MVALUES_TISSUES,
+};
+use crate::{
+    mptt::{MValues, TissueRow},
+    pressure_unit::{Pa, Pressure, msw},
+};
 
 pub const MSW_0_PA: Pa = msw::new(0.0).to_pa();
 
@@ -10,27 +21,16 @@ pub const DINC_PA: Pa = DINC.to_pa() - MSW_0_PA;
 // IDX * DINC
 pub const LAST_STOP: msw = msw::new(6.0);
 
-pub struct ModelState {
-    // finished_profile: bool,            // DONE
-    // first_stop_calculated: bool,       // FRSTOP
-    // include_travel_time_in_stop: bool, // TTIS
-
-    // elapsed_time: f32,                       // TIME
-    // cumulative_ascent_time: f32,             // TT_SUM
-    // cumulative_ascent_included_in_stop: f32, // TTSTC_SUM
-    // previous_tt: f32,                        // TT0
-}
-
-pub const fn set_m(mode: u8) -> MVALUES<Pa> {
+pub const fn set_m(mode: u8) -> MValues<Pa, { NUM_TISSUES }, { NUM_STOP_DEPTHS }> {
     if mode == 0 || mode != 1 {
-        return XVAL_HE9_040_F32;
+        return MVALUES_TISSUES;
     }
     let idx = (LAST_STOP.0 / DINC.0) as isize;
     if idx <= 1 {
         return set_m(0);
     }
     let idx = idx as usize;
-    let mut result = XVAL_HE9_040_F32;
+    let mut result = MVALUES_TISSUES;
     // Copy surfacing MVals to IDX row // TODO: What are surfacing?
     result[idx] = result[0];
     let mut i = 0;
@@ -42,35 +42,5 @@ pub const fn set_m(mode: u8) -> MVALUES<Pa> {
         };
         i += 1;
     }
-    return result;
-}
-
-pub fn initialize_profile() {
-    // TODO:
-    ()
-}
-pub fn initialize_model_state() -> ModelState {
-    // --- Flags and booleans ---
-    // TODO:
-    ModelState {
-        // finished_profile: false,
-        // first_stop_calculated: false,
-        // include_travel_time_in_stop: true,
-
-        // elapsed_time: 0.0,
-        // cumulative_ascent_time: 0.0,
-        // cumulative_ascent_included_in_stop: 0.0,
-        // previous_tt: 0.0,
-    }
-
-    // --- Other model state ---
-    // For now we assume tissue loadings (P) are already passed in
-    // so we do not initialize them here
-
-    // If needed, we could also reset repetitive group reference:
-    // let reference_compartment: usize = 0;   // IREF
-    // let first_profile_to_read: bool = true; // PROFL1
-
-    // The function essentially prepares the loop to start iterating
-    // without modifying the current tissue loadings
+    result
 }

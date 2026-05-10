@@ -1,5 +1,5 @@
 [package]
-name = "thalmann"
+name = "stdc_diving_algorithms"
 version = "0.1.15"
 edition = "2024"
 
@@ -7,5 +7,5 @@ edition = "2024"
 num = { version = "0.4.3", default-features = false, features = ["libm"] }
 
 [features]
-default = ["thalmann"]
-thalmann = []
+default = ["lin_exp"]
+lin_exp = []

@@ -8,9 +8,7 @@ use core::ops::{Add, AddAssign, Div, Mul, Sub};
 use core::prelude::rust_2024::derive;
 
 /// Common trait for all pressure units
-pub const trait Pressure:
-    Copy + Clone + Debug + const PartialEq + const PartialOrd
-{
+pub const trait Pressure: Copy + Clone + Debug + const PartialEq + const PartialOrd {
     fn to_pa(self) -> Pa;
     fn to_kpa(self) -> kPa;
     fn to_hpa(self) -> hPa;
@@ -155,13 +153,16 @@ macro_rules! pressure_unit_relative {
     };
 }
 
+#[allow(clippy::excessive_precision)]
+const FEET_FACTOR: f32 = 3_064.30593138;
+
 // -------------------- Base units --------------------
 pressure_unit!(Pa, 1.0);
 pressure_unit!(hPa, 100.0);
 pressure_unit!(kPa, 1000.0);
 pressure_unit!(Bar, 100_000.0);
 pressure_unit_relative!(msw, 1.013E4);
-pressure_unit_relative!(fsw, 3064.30593138);
+pressure_unit_relative!(fsw, FEET_FACTOR);
 
 // -------------------- From<Pa> implementations --------------------
 impl const From<Pa> for hPa {
@@ -186,7 +187,7 @@ impl const From<Pa> for msw {
 }
 impl const From<Pa> for fsw {
     fn from(value: Pa) -> Self {
-        Self((value.0 - 1E5) / 3064.30593138)
+        Self((value.0 - 1E5) / FEET_FACTOR)
     }
 }
 

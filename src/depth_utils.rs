@@ -6,7 +6,7 @@ use num::integer::mod_floor;
 use num::Float;
 use num::ToPrimitive;
 
-use crate::pressure_unit::{msw, Pa, Pressure};
+use crate::pressure_unit::{Pa, Pressure, msw};
 use crate::setup::{DINC, DINC_PA, MSW_0_PA};
 
 pub const fn get_depth(d_idx: usize) -> Pa {

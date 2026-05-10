@@ -5,26 +5,32 @@
 #![feature(const_trait_impl)]
 #![feature(const_default)]
 #![feature(const_ops)]
+#![feature(const_option_ops)]
+#![feature(const_array)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 #![feature(const_convert)]
 #![feature(const_cmp)]
 #![feature(derive_const)]
 
+mod deco_algorithm;
 mod depth_utils;
 pub mod display_utils;
 pub mod dive;
 pub mod gas;
 pub mod mptt;
+mod mptt_buehlmann;
+mod mptt_thalmann;
 pub mod o2tox;
 pub mod pressure_unit;
 mod setup;
-pub mod deco_algorithm;
 mod time_utils;
 mod update;
 mod update_exp;
 mod update_exp_lin;
 
+pub use deco_algorithm::{
+    DecoAlgorithmResult, MVALUES, MValues, calc_deco_schedule, compute_deco_algorithm,
+};
 pub use setup::{DINC, LAST_STOP};
-pub use deco_algorithm::{MVALUES_HE9_040, DecoAlgorithmResult, calc_deco_schedule, compute_deco_algorithm};
 pub use update::loadings_from_dive_profile;

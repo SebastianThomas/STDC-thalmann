@@ -1,21 +1,27 @@
 use core::time::Duration;
 
+use crate::setup::{NUM_STOP_DEPTHS, NUM_TISSUES};
+
 use crate::depth_utils::{get_depth, get_depth_idx};
 use crate::dive::{Stop, StopSchedule};
 use crate::gas::{GasDensitySettings, GasMix, TissuesLoading, best_available_mix};
-use crate::mptt::{MVALUES, NUM_STOP_DEPTHS, TISSUES, Tissue};
+use crate::mptt::{self, Tissue};
+#[cfg(not(feature = "lin_exp"))]
+use crate::mptt_buehlmann::{self, NUM_STOP_DEPTHS_BUEHLMANN, NUM_TISSUES_BUEHLMANN};
+#[cfg(feature = "lin_exp")]
+use crate::mptt_thalmann::{self, NUM_STOP_DEPTHS_THALMANN, NUM_TISSUES_THALMANN};
 use crate::pressure_unit::{AbsPressure, Pa, Pressure, msw};
-use crate::setup::{LAST_STOP, NUM_TISSUES, initialize_model_state, initialize_profile, set_m};
+use crate::setup::{LAST_STOP, set_m};
 use crate::time_utils::get_time_ms_rel;
 use crate::update::first_stop_depth;
-#[cfg(not(feature = "thalmann"))]
+#[cfg(not(feature = "lin_exp"))]
 pub use crate::update_exp::{
     compute_stop_time_exp as compute_stop_time, update_model_state_exp as update_model_state,
 };
-#[cfg(feature = "thalmann")]
+#[cfg(feature = "lin_exp")]
 pub use crate::update_exp_lin::{
-    compute_stop_time_thalmann as compute_stop_time,
-    update_model_state_thalmann as update_model_state,
+    compute_stop_time_lin_exp as compute_stop_time,
+    update_model_state_lin_exp as update_model_state,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,7 +35,18 @@ pub enum DecoAlgorithmResult {
     },
 }
 
-pub const MVALUES_HE9_040: MVALUES<Pa> = set_m(0);
+#[cfg(feature = "lin_exp")]
+pub const MVALUES: mptt::MValues<Pa, { NUM_TISSUES_THALMANN }, { NUM_STOP_DEPTHS_THALMANN }> =
+    set_m(0);
+#[cfg(not(feature = "lin_exp"))]
+pub const MVALUES: mptt::MValues<Pa, { NUM_TISSUES_BUEHLMANN }, { NUM_STOP_DEPTHS_BUEHLMANN }> =
+    set_m(0);
+#[cfg(feature = "lin_exp")]
+pub const TISSUES: [Tissue; NUM_TISSUES_THALMANN] = mptt_thalmann::TISSUES;
+#[cfg(not(feature = "lin_exp"))]
+pub const TISSUES: [Tissue; NUM_TISSUES_BUEHLMANN] = mptt_buehlmann::TISSUES;
+
+pub type MValues<P: const AbsPressure> = mptt::MValues<P, { NUM_TISSUES }, { NUM_STOP_DEPTHS }>;
 
 pub fn compute_deco_algorithm<P: Pressure, const NUM_GASES: usize>(
     loading: &mut TissuesLoading<NUM_TISSUES, Pa>,
@@ -48,10 +65,7 @@ where
     let mut prev_ms: usize = 0;
     let mut current_ms: usize = 0;
 
-    initialize_profile();
-    initialize_model_state();
-
-    let m_values = &MVALUES_HE9_040;
+    let m_values = &MVALUES;
 
     // Current depth idx
     let mut current_maximum_allowed_depth: msw = max_depth.to_msw();
@@ -92,7 +106,7 @@ where
             current_depth.to_pa(),
             &duration,
         );
-        let first_stop = first_stop_depth(&loading, m_values);
+        let first_stop = first_stop_depth(loading, m_values);
         if first_stop.is_none() {
             return DecoAlgorithmResult::FinishedResult {
                 iterations: iter_count,
@@ -101,7 +115,7 @@ where
         }
         current_maximum_allowed_depth = first_stop.unwrap();
         let _stop_time = compute_stop_time(
-            &loading,
+            loading,
             &TISSUES,
             &gases[current_gas],
             m_values,
@@ -110,14 +124,17 @@ where
     }
 }
 
-type TissuesLoadingNumTissues<P> = TissuesLoading<NUM_TISSUES, P>;
+#[cfg(feature = "lin_exp")]
+type TissuesLoadingNumTissues<P> = TissuesLoading<{ NUM_TISSUES_THALMANN }, P>;
+#[cfg(not(feature = "lin_exp"))]
+type TissuesLoadingNumTissues<P> = TissuesLoading<{ NUM_TISSUES_BUEHLMANN }, P>;
 
 pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
     loading: &TissuesLoadingNumTissues<Pa>,
     gases: &[GasMix<f32>; NUM_GASES],
     deco_settings: &DecoSettings<Pa>,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
-    calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES_HE9_040, deco_settings)
+    calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES, deco_settings)
 }
 
 pub struct DecoSettings<P: const AbsPressure> {
@@ -126,15 +143,14 @@ pub struct DecoSettings<P: const AbsPressure> {
 }
 
 fn calc_deco_schedule_intern<
-    const NUM_TS: usize,
     const NUM_STOPS: usize,
     const NUM_GASES: usize,
     P: const AbsPressure,
 >(
-    loading: &TissuesLoading<NUM_TS, P>,
-    tissues: &[Tissue; NUM_TS],
+    loading: &TissuesLoading<NUM_TISSUES, P>,
+    tissues: &[Tissue; NUM_TISSUES],
     gases: &[GasMix<f32>; NUM_GASES],
-    m_values: &MVALUES<P>,
+    m_values: &MValues<P>,
     deco_settings: &DecoSettings<P>,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
     assert!(NUM_STOPS < NUM_STOP_DEPTHS);
@@ -175,16 +191,16 @@ fn calc_deco_schedule_intern<
         update_model_state(
             &mut loading,
             tissues,
-            &m_values,
+            m_values,
             breathing_gas,
             stop_depth.to_pa().into(),
             &stop_duration,
         );
-        stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(breathing_gas.clone()));
+        stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(*breathing_gas));
     }
     Ok(StopSchedule::new(stops))
 }
 
 const fn stop_idx_in_stops(num_stops: usize, i: usize) -> usize {
-    return num_stops - 1 - i;
+    num_stops - 1 - i
 }

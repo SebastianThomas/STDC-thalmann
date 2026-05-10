@@ -16,9 +16,9 @@ pub const fn show_duration(d: Duration) -> [char; 9] {
     let mins = padded_2::<'0'>((secs % SECS_PER_HOUR) / SECS_PER_MIN);
     let secs = padded_2::<'0'>(secs % SECS_PER_MIN);
     let millis = padded_3::<'0'>(d.subsec_millis() as u64);
-    return [
+    [
         mins[0], mins[1], ':', secs[0], secs[1], '.', millis[0], millis[1], millis[2],
-    ];
+    ]
 }
 
 pub const fn padded_2<const C: char>(n: u64) -> [char; 2] {
@@ -28,10 +28,10 @@ pub const fn padded_2<const C: char>(n: u64) -> [char; 2] {
         let tens: u32 = ((n / 10) % 10) as u32;
         char::from_digit(tens, 10).expect("Tens digit should be < 10")
     };
-    return [
+    [
         most_significant_char,
         char::from_digit((n % 10) as u32, 10).unwrap(),
-    ];
+    ]
 }
 
 pub const fn padded_3<const C: char>(n: u64) -> [char; 3] {
@@ -44,7 +44,7 @@ pub const fn padded_3<const C: char>(n: u64) -> [char; 3] {
         }
     };
     let tens_ones = padded_2::<C>(n % 100);
-    return [most_significant_char, tens_ones[0], tens_ones[1]];
+    [most_significant_char, tens_ones[0], tens_ones[1]]
 }
 
 pub fn format_f32<const C: char, const BEFORE_COMMA: usize, const AFTER_COMMA: usize>(
@@ -95,9 +95,7 @@ pub fn format_f32<const C: char, const BEFORE_COMMA: usize, const AFTER_COMMA: u
     // Build final [char; BEFORE_COMMA + AFTER_COMMA + 1]
     let mut out = ['\0'; BEFORE_COMMA + AFTER_COMMA + 1];
 
-    for i in 0..BEFORE_COMMA {
-        out[i] = int_chars[i];
-    }
+    out[..BEFORE_COMMA].copy_from_slice(&int_chars[..BEFORE_COMMA]);
     out[BEFORE_COMMA] = '.';
     for j in (BEFORE_COMMA + 1)..AFTER_COMMA {
         out[j] = frac_chars[j - (BEFORE_COMMA + 1)];

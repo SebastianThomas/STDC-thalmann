@@ -133,11 +133,7 @@ impl<P: const AbsPressure> CCRGas<f32, P> {
 impl<P: const AbsPressure> const Gas for CCRGas<f32, P> {
     fn po2<D: const AbsPressure>(&self, depth: D) -> D {
         let set_point = D::from(self.set_point.to_pa());
-        if depth < set_point {
-            depth
-        } else {
-            set_point
-        }
+        if depth < set_point { depth } else { set_point }
     }
 
     fn pn2_phe_ph2<D: const AbsPressure>(&self, depth: D) -> (D, D, D) {
@@ -148,7 +144,7 @@ impl<P: const AbsPressure> const Gas for CCRGas<f32, P> {
         let fn2_loop = (1.0 - fo2_from_dil) * self.diluent.fn2();
         let fhe_loop = (1.0 - fo2_from_dil) * self.diluent.fhe();
         let fh2_loop = (1.0 - fo2_from_dil) * self.diluent.fh2();
-        return (depth * fn2_loop, depth * fhe_loop, depth * fh2_loop);
+        (depth * fn2_loop, depth * fhe_loop, depth * fh2_loop)
     }
 
     fn pn2<D: const AbsPressure>(&self, depth: D) -> D {
@@ -186,7 +182,7 @@ impl<const NUM_TS: usize, P: const AbsPressure> TissuesLoading<NUM_TS, P> {
     pub fn is_isobaric_counterdiffusion<G: Gas>(&self, depth: P, new_gas: &G) -> bool {
         let new_gas_n2 = new_gas.pn2(depth);
         let new_gas_he = new_gas.phe(depth);
-        return zip(self.n2, self.he).any(|(n2, he)| n2 < new_gas_n2 && he > new_gas_he);
+        zip(self.n2, self.he).any(|(n2, he)| n2 < new_gas_n2 && he > new_gas_he)
     }
 
     pub fn tick<G: Gas>(&mut self, time_delta_ms: u16, depth: P, gas: &G) {
@@ -195,9 +191,9 @@ impl<const NUM_TS: usize, P: const AbsPressure> TissuesLoading<NUM_TS, P> {
     }
 
     fn tick_gas(time_delta_ms: u16, pp_insp: P, cur: &mut [P; NUM_TS]) {
-        for i in 0..NUM_TS {
+        for item in cur.iter_mut().take(NUM_TS) {
             let delta: f32 = f32::from(time_delta_ms) / 1000.0;
-            cur[i] = cur[i] + (pp_insp - cur[i]) * delta;
+            *item = *item + (pp_insp - *item) * delta;
         }
     }
 }
@@ -216,7 +212,7 @@ impl<P: const AbsPressure> GasDensitySettings<P> {
         if let GasDensitySettings::Limit { limit } = self {
             return gas.gas_density(depth) < *limit;
         }
-        return true;
+        true
     }
 }
 
@@ -259,7 +255,7 @@ pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS
 
 #[cfg(test)]
 mod tests {
-    use crate::pressure_unit::{msw, Pressure};
+    use crate::pressure_unit::{Pressure, msw};
 
     use super::*;
 

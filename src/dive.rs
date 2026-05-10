@@ -88,7 +88,7 @@ impl<const NUM_STOPS: usize> StopSchedule<NUM_STOPS> {
     }
 
     pub fn get_deco_tts(&self, max_deco_ascent_rate_per_meter: &Duration) -> Duration {
-        return match self.first_stop() {
+        match self.first_stop() {
             Some(first_stop) => {
                 let stops_time: Duration = self.stops.iter().map(|s| s.duration()).sum();
                 let stops_ascent_time: Duration =
@@ -96,7 +96,7 @@ impl<const NUM_STOPS: usize> StopSchedule<NUM_STOPS> {
                 stops_time + stops_ascent_time
             }
             None => Duration::ZERO,
-        };
+        }
     }
 
     pub fn get_tt_first_stop_ascent_now<P: Pressure>(
@@ -116,6 +116,6 @@ impl<const NUM_STOPS: usize> StopSchedule<NUM_STOPS> {
             );
         }
         let diff = msw::new(current_depth.to_msw().to_f32() - first_stop.to_msw().to_f32());
-        return Ok(get_ascent_time(diff, max_ascent_rate_per_meter));
+        Ok(get_ascent_time(diff, max_ascent_rate_per_meter))
     }
 }

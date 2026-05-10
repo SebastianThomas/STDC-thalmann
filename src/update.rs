@@ -1,16 +1,17 @@
 use core::time::Duration;
 
 use crate::{
+    deco_algorithm::{MValues, update_model_state},
     dive::{DiveMeasurement, DiveProfile},
     gas::{AIR, HE_IDX, N2_IDX, TissuesLoading},
-    mptt::{MVALUES, Tissue},
+    mptt::Tissue,
     pressure_unit::{AbsPressure, msw},
-    deco_algorithm::update_model_state,
+    setup::NUM_TISSUES,
 };
 
-pub fn first_stop_depth<const NUM_TISSUES: usize, P: const AbsPressure>(
-    p: &TissuesLoading<NUM_TISSUES, P>,
-    m_values: &MVALUES<P>,
+pub fn first_stop_depth<P: const AbsPressure>(
+    p: &TissuesLoading<{ NUM_TISSUES }, P>,
+    m_values: &MValues<P>,
 ) -> Option<msw> {
     for mvalues_at_depth in m_values.iter().rev() {
         for &gas_idx in [N2_IDX, HE_IDX].iter() {
@@ -19,6 +20,7 @@ pub fn first_stop_depth<const NUM_TISSUES: usize, P: const AbsPressure>(
                 HE_IDX => &p.he,
                 _ => unreachable!(),
             };
+            #[allow(clippy::needless_range_loop)]
             for i in 0..NUM_TISSUES {
                 if tissue_loadings[i] > mvalues_at_depth.max_saturation[i] {
                     return Some(mvalues_at_depth.depth);
@@ -31,13 +33,14 @@ pub fn first_stop_depth<const NUM_TISSUES: usize, P: const AbsPressure>(
 
 pub fn loadings_from_dive_profile<
     const NUM_TISSUES: usize,
+    const NUM_STOP_DEPTHS: usize,
     const NUM_GASES: usize,
     const NUM_MEASUREMENTS: usize,
-    P: const AbsPressure
+    P: const AbsPressure,
 >(
     tissues: &[Tissue; NUM_TISSUES],
     profile: &DiveProfile<P, f32, NUM_GASES, NUM_MEASUREMENTS>,
-    m_values: &MVALUES<P>,
+    m_values: &MValues<P>,
     surface: P,
 ) -> TissuesLoading<NUM_TISSUES, P> {
     let mut loadings = TissuesLoading::new(surface, &AIR);
