@@ -13,7 +13,7 @@
 #![feature(const_cmp)]
 #![feature(derive_const)]
 
-mod deco_algorithm;
+pub mod deco_algorithm;
 mod depth_utils;
 pub mod display_utils;
 pub mod dive;
@@ -25,14 +25,10 @@ mod mptt_buehlmann;
 mod mptt_thalmann;
 pub mod o2tox;
 pub mod pressure_unit;
-mod setup;
+pub mod setup;
 mod time_utils;
 mod update;
 mod update_exp;
 mod update_exp_lin;
 
-pub use deco_algorithm::{
-    DecoAlgorithmResult, MVALUES, MValues, calc_deco_schedule, compute_deco_algorithm,
-};
-pub use setup::{DINC, LAST_STOP};
 pub use update::loadings_from_dive_profile;
