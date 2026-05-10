@@ -10,7 +10,7 @@ use crate::{
 
 use num::Float;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct DiveMeasurement<P: const AbsPressure> {
     pub time_ms: usize,
     pub depth: P,
