@@ -14,7 +14,7 @@
 #![feature(derive_const)]
 
 pub mod deco_algorithm;
-mod depth_utils;
+pub mod depth_utils;
 pub mod display_utils;
 pub mod dive;
 pub mod gas;
