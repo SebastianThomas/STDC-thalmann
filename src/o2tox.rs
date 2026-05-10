@@ -229,12 +229,8 @@ pub fn calculate_toxicity_from_profile<
 ///
 /// # Returns
 /// The new cumulative O2ToxicityPercentage including all measurements from start_index onwards
-pub fn calculate_toxicity_diff<
-    const NUM_GASES: usize,
-    const NUM_MEASUREMENTS: usize,
-    P: const AbsPressure,
->(
-    measurements: &[DiveMeasurement<P>; NUM_MEASUREMENTS],
+pub fn calculate_toxicity_diff<const NUM_GASES: usize, P: const AbsPressure>(
+    measurements: &[DiveMeasurement<P>],
     gases: &[GasMix<f32>; NUM_GASES],
     start_index: usize,
     previous_toxicity: &O2ToxicityPercentage,
@@ -249,7 +245,6 @@ pub fn calculate_toxicity_diff<
         return O2ToxicityPercentage::new(cns_percent, pulmonary_percent);
     }
 
-    let measurements = &measurements;
     for i in start_index..measurements.len().saturating_sub(1) {
         let prev_measurement = &measurements[i];
         let curr_measurement = &measurements[i + 1];
