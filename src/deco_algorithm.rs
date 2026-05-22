@@ -132,9 +132,17 @@ type TissuesLoadingNumTissues<P> = TissuesLoading<{ NUM_TISSUES_BUEHLMANN }, P>;
 pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
     loading: &TissuesLoadingNumTissues<Pa>,
     gases: &[GasMix<f32>; NUM_GASES],
+    gases_enabled: &[bool; NUM_GASES],
     deco_settings: &DecoSettings<Pa>,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
-    calc_deco_schedule_intern(loading, &TISSUES, gases, &MVALUES, deco_settings)
+    calc_deco_schedule_intern(
+        loading,
+        &TISSUES,
+        gases,
+        gases_enabled,
+        &MVALUES,
+        deco_settings,
+    )
 }
 
 pub struct DecoSettings<P: const AbsPressure> {
@@ -150,6 +158,7 @@ fn calc_deco_schedule_intern<
     loading: &TissuesLoading<NUM_TISSUES, P>,
     tissues: &[Tissue; NUM_TISSUES],
     gases: &[GasMix<f32>; NUM_GASES],
+    gases_enabled: &[bool; NUM_GASES],
     m_values: &MValues<P>,
     deco_settings: &DecoSettings<P>,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
@@ -168,6 +177,7 @@ fn calc_deco_schedule_intern<
             deco_settings.max_deco_po2,
             stop_depth.to_pa().into(),
             gases,
+            gases_enabled,
             &loading,
             false,
             &deco_settings.gas_density_settings,

@@ -228,6 +228,7 @@ pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS
     max_po2: P,
     depth: P,
     available_gases: &'a [GasMix<f32>; G],
+    gases_enabled: &[bool; G],
     tissue_loading: &TissuesLoading<NUM_TS, P>,
     ignore_isobaric_counterdiffusion: bool,
     gas_density: &GasDensitySettings<P>,
@@ -236,6 +237,7 @@ pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS
     available_gases
         .iter()
         .enumerate()
+        .filter(|(i, _g)| gases_enabled[*i])
         .filter(|(_i, g)| g.fo2() <= best_mix_fo2)
         .filter(|(_i, g)| {
             ignore_isobaric_counterdiffusion
@@ -294,6 +296,7 @@ mod tests {
             GasMix::new(0.21, 0.35).expect("21 + 35 < 100"),
             GasMix::new(0.5, 0.0).expect("50 < 100"),
         ];
+        let gases_enabled = [true; 3];
         let empty_tissues = TissuesLoading {
             n2: [msw::new(0.0).to_pa()],
             he: [msw::new(0.0).to_pa()],
@@ -303,6 +306,7 @@ mod tests {
                 Bar::new(1.6).to_pa(),
                 msw::new(21.0).to_pa(),
                 &gases,
+                &gases_enabled,
                 &empty_tissues,
                 true,
                 &GasDensitySettings::Ignore
@@ -315,6 +319,7 @@ mod tests {
                 Bar::new(1.4).to_pa(),
                 msw::new(21.0).to_pa(),
                 &gases,
+                &gases_enabled,
                 &empty_tissues,
                 true,
                 &GasDensitySettings::Ignore
@@ -327,6 +332,7 @@ mod tests {
                 Bar::new(1.6).to_pa(),
                 msw::new(22.0).to_pa(),
                 &gases,
+                &gases_enabled,
                 &empty_tissues,
                 true,
                 &GasDensitySettings::Ignore
