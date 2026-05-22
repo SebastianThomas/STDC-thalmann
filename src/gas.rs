@@ -160,7 +160,7 @@ impl<P: const AbsPressure> const Gas for CCRGas<f32, P> {
     }
 }
 
-pub const AIR: GasMix<f32> = match GasMix::new(0.79, 0.000_005_2) {
+pub const AIR: GasMix<f32> = match GasMix::new(0.209, 0.000_005_2) {
     Ok(g) => g,
     Err(_) => unreachable!(),
 };
