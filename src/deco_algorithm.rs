@@ -146,7 +146,7 @@ pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
 }
 
 pub struct DecoSettings<P: const AbsPressure> {
-    pub gas_density_settings: GasDensitySettings<P>,
+    pub gas_density_settings: GasDensitySettings,
     pub max_deco_po2: P,
 }
 

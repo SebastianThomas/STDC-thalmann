@@ -3,7 +3,7 @@ use core::iter::zip;
 #[allow(unused)]
 use num::Float;
 
-use crate::pressure_unit::{AbsPressure, Bar};
+use crate::pressure_unit::{AbsPressure, Bar, Pressure};
 
 pub const N2_IDX: usize = 0;
 pub const HE_IDX: usize = 1;
@@ -20,8 +20,53 @@ pub const DENSITY_HE: f32 = 0.1785;
 pub const DENSITY_H2: f32 = 0.0899;
 pub const DENSITY_AIR: f32 = 1.205;
 
-pub const MAX_GAS_DENSITY: Bar = Bar::new(5.2);
-pub const MAX_GAS_DENSITY_LIMIT: Bar = Bar::new(6.2);
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct gL(f32);
+
+impl gL {
+    pub const fn new(v: f32) -> Self {
+        Self(v)
+    }
+
+    pub const fn to_f32(self) -> f32 {
+        self.0
+    }
+}
+
+const impl core::ops::Add for gL {
+    type Output = gL;
+
+    fn add(self, rhs: gL) -> gL {
+        gL(self.0 + rhs.0)
+    }
+}
+
+const impl core::ops::Mul<f32> for gL {
+    type Output = gL;
+
+    fn mul(self, rhs: f32) -> gL {
+        gL(self.0 * rhs)
+    }
+}
+
+pub const MAX_GAS_DENSITY: gL = gL::new(5.2);
+pub const MAX_GAS_DENSITY_LIMIT: gL = gL::new(6.2);
+
+pub const fn gas_density_limit_from_air_multiplier(air_multiplier: f32) -> gL {
+    gL::new(DENSITY_AIR * air_multiplier)
+}
+
+pub fn air_density_at_depth<P: const AbsPressure>(depth: P) -> gL {
+    gL::new(depth.to_bar().to_f32() * DENSITY_AIR)
+}
+
+pub fn gas_density_limit_at_depth_from_air_multiplier<P: const AbsPressure>(
+    depth: P,
+    air_multiplier: f32,
+) -> gL {
+    air_density_at_depth(depth) * air_multiplier
+}
 
 pub const trait Gas {
     fn po2<D: const AbsPressure>(&self, depth: D) -> D;
@@ -30,23 +75,23 @@ pub const trait Gas {
     fn ph2<D: const AbsPressure>(&self, depth: D) -> D;
     fn pn2_phe_ph2<D: const AbsPressure>(&self, depth: D) -> (D, D, D);
 
-    fn o2_density<P: const AbsPressure>(&self, depth: P) -> P {
-        self.po2(depth) * DENSITY_O2
+    fn o2_density<P: const AbsPressure>(&self, depth: P) -> gL {
+        gL::new(self.po2(depth).to_bar().to_f32() * DENSITY_O2)
     }
 
-    fn n2_density<P: const AbsPressure>(&self, depth: P) -> P {
-        self.pn2(depth) * DENSITY_N2
+    fn n2_density<P: const AbsPressure>(&self, depth: P) -> gL {
+        gL::new(self.pn2(depth).to_bar().to_f32() * DENSITY_N2)
     }
 
-    fn he_density<P: const AbsPressure>(&self, depth: P) -> P {
-        self.phe(depth) * DENSITY_HE
+    fn he_density<P: const AbsPressure>(&self, depth: P) -> gL {
+        gL::new(self.phe(depth).to_bar().to_f32() * DENSITY_HE)
     }
 
-    fn h2_density<P: const AbsPressure>(&self, depth: P) -> P {
-        self.ph2(depth) * DENSITY_H2
+    fn h2_density<P: const AbsPressure>(&self, depth: P) -> gL {
+        gL::new(self.ph2(depth).to_bar().to_f32() * DENSITY_H2)
     }
 
-    fn gas_density<P: const AbsPressure>(&self, depth: P) -> P {
+    fn gas_density<P: const AbsPressure>(&self, depth: P) -> gL {
         self.o2_density(depth)
             + self.n2_density(depth)
             + self.he_density(depth)
@@ -90,7 +135,7 @@ impl GasMix<f32> {
     }
 }
 
-impl const Gas for GasMix<f32> {
+const impl Gas for GasMix<f32> {
     fn po2<D: const AbsPressure>(&self, depth: D) -> D {
         depth * self.o2
     }
@@ -130,7 +175,7 @@ impl<P: const AbsPressure> CCRGas<f32, P> {
     }
 }
 
-impl<P: const AbsPressure> const Gas for CCRGas<f32, P> {
+const impl<P: const AbsPressure> Gas for CCRGas<f32, P> {
     fn po2<D: const AbsPressure>(&self, depth: D) -> D {
         let set_point = D::from(self.set_point.to_pa());
         if depth < set_point { depth } else { set_point }
@@ -202,15 +247,25 @@ pub fn best_mix_fo2<P: const AbsPressure>(max_po2: P, depth: P) -> f32 {
     max_po2 / depth
 }
 
-pub enum GasDensitySettings<P: const AbsPressure> {
+pub enum GasDensitySettings {
     Ignore,
-    Limit { limit: P },
+    Limit { limit_g_l: gL },
 }
 
-impl<P: const AbsPressure> GasDensitySettings<P> {
-    pub fn no_violation(&self, depth: P, gas: &GasMix<f32>) -> bool {
-        if let GasDensitySettings::Limit { limit } = self {
-            return gas.gas_density(depth) < *limit;
+impl GasDensitySettings {
+    pub const fn limit_g_l(limit_g_l: gL) -> Self {
+        Self::Limit { limit_g_l }
+    }
+
+    pub const fn limit_from_air_multiplier(air_multiplier: f32) -> Self {
+        Self::Limit {
+            limit_g_l: gas_density_limit_from_air_multiplier(air_multiplier),
+        }
+    }
+
+    pub fn no_violation<P: const AbsPressure>(&self, depth: P, gas: &GasMix<f32>) -> bool {
+        if let GasDensitySettings::Limit { limit_g_l } = self {
+            return gas.gas_density(depth) < *limit_g_l;
         }
         true
     }
@@ -231,7 +286,7 @@ pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS
     gases_enabled: &[bool; G],
     tissue_loading: &TissuesLoading<NUM_TS, P>,
     ignore_isobaric_counterdiffusion: bool,
-    gas_density: &GasDensitySettings<P>,
+    gas_density: &GasDensitySettings,
 ) -> Option<(usize, &'a GasMix<f32>)> {
     let best_mix_fo2 = best_mix_fo2(max_po2, depth);
     available_gases
@@ -257,7 +312,7 @@ pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS
 
 #[cfg(test)]
 mod tests {
-    use crate::pressure_unit::{Pressure, msw};
+    use crate::pressure_unit::{Pa, Pressure, msw};
 
     use super::*;
 
@@ -289,18 +344,24 @@ mod tests {
         );
     }
 
-    #[test]
-    fn best_available_mix_test() {
+    fn best_available_mix_fixture() -> ([GasMix<f32>; 4], [bool; 4], TissuesLoading<1, Pa>) {
         let gases = [
             AIR,
             GasMix::new(0.21, 0.35).expect("21 + 35 < 100"),
             GasMix::new(0.5, 0.0).expect("50 < 100"),
+            GasMix::new(0.10, 0.80).expect("10 + 80 < 100"),
         ];
-        let gases_enabled = [true; 3];
+        let gases_enabled = [true; 4];
         let empty_tissues = TissuesLoading {
             n2: [msw::new(0.0).to_pa()],
             he: [msw::new(0.0).to_pa()],
         };
+        (gases, gases_enabled, empty_tissues)
+    }
+
+    #[test]
+    fn best_available_mix_at_21m_ppo2_1_6_selects_gas_2() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
         assert_eq!(
             best_available_mix(
                 Bar::new(1.6).to_pa(),
@@ -314,6 +375,11 @@ mod tests {
             .expect("There are gases, so reduce should return a result"),
             (2_usize, &gases[2])
         );
+    }
+
+    #[test]
+    fn best_available_mix_at_21m_ppo2_1_4_selects_gas_1() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
         assert_eq!(
             best_available_mix(
                 Bar::new(1.4).to_pa(),
@@ -327,6 +393,11 @@ mod tests {
             .expect("There are gases, so reduce should return a result"),
             (1_usize, &gases[1])
         );
+    }
+
+    #[test]
+    fn best_available_mix_at_22m_ppo2_1_6_selects_gas_1() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
         assert_eq!(
             best_available_mix(
                 Bar::new(1.6).to_pa(),
@@ -339,6 +410,92 @@ mod tests {
             )
             .expect("There are gases, so reduce should return a result"),
             (1_usize, &gases[1])
+        );
+    }
+
+    #[test]
+    fn best_available_mix_at_90m_ppo2_1_4_selects_gas_3() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.4).to_pa(),
+                msw::new(90.0).to_pa(),
+                &gases,
+                &gases_enabled,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::Ignore
+            ),
+            Some((3_usize, &gases[3]))
+        );
+    }
+
+    #[test]
+    fn best_available_mix_with_air_multiplier_limit_returns_none() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.4).to_pa(),
+                msw::new(130.0).to_pa(),
+                &gases,
+                &gases_enabled,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::limit_from_air_multiplier(3.0)
+            ),
+            None,
+            // Some((3_usize, &gases[3]))
+        );
+    }
+
+    #[test]
+    fn best_available_mix_with_6gl_limit_selects_gas_3() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.4).to_pa(),
+                msw::new(119.0).to_pa(),
+                &gases,
+                &gases_enabled,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::limit_g_l(gL::new(6.3))
+            ),
+            Some((3_usize, &gases[3]))
+        );
+    }
+
+    #[test]
+    fn best_available_mix_with_2gl_limit_selects_gas_3() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.4).to_pa(),
+                msw::new(119.0).to_pa(),
+                &gases,
+                &gases_enabled,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::limit_g_l(gL::new(2.0))
+            ),
+            None,
+        );
+    }
+
+    #[test]
+    fn best_available_mix_no_valid_gas_returns_none() {
+        let (gases, gases_enabled, empty_tissues) = best_available_mix_fixture();
+        assert_eq!(
+            best_available_mix(
+                Bar::new(1.0).to_pa(),
+                msw::new(200.0).to_pa(),
+                &gases,
+                &gases_enabled,
+                &empty_tissues,
+                true,
+                &GasDensitySettings::Ignore
+            ),
+            None
         );
     }
 }
