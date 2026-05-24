@@ -209,6 +209,34 @@ pub const AIR: GasMix<f32> = match GasMix::new(0.209, 0.000_005_2) {
     Ok(g) => g,
     Err(_) => unreachable!(),
 };
+pub const NX100: GasMix<f32> = match GasMix::new(0.99, 0.0) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
+pub const NX50: GasMix<f32> = match GasMix::new(0.50, 0.000_005_2) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
+pub const TMX21_35: GasMix<f32> = match GasMix::new(0.21, 0.35) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
+pub const TMX18_45: GasMix<f32> = match GasMix::new(0.18, 0.45) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
+pub const TMX15_55: GasMix<f32> = match GasMix::new(0.15, 0.55) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
+pub const TMX12_65: GasMix<f32> = match GasMix::new(0.12, 0.65) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
+pub const TMX10_80: GasMix<f32> = match GasMix::new(0.10, 0.80) {
+    Ok(g) => g,
+    Err(_) => unreachable!(),
+};
 
 #[derive(Debug, Clone)]
 pub struct TissuesLoading<const NUM_TISSUES: usize, P: const AbsPressure> {
