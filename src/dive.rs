@@ -63,7 +63,7 @@ pub struct StopSchedule<const NUM_STOPS: usize> {
     stops: [Stop; NUM_STOPS],
 }
 
-impl<const NUM_STOPS: usize> const Default for StopSchedule<NUM_STOPS> {
+const impl<const NUM_STOPS: usize> Default for StopSchedule<NUM_STOPS> {
     fn default() -> Self {
         let mut stops: [Stop; NUM_STOPS] =
             [Stop::new(msw::new(0.0), Duration::from_millis(0), None); NUM_STOPS];
@@ -81,6 +81,10 @@ impl<const NUM_STOPS: usize> const Default for StopSchedule<NUM_STOPS> {
 impl<const NUM_STOPS: usize> StopSchedule<NUM_STOPS> {
     pub fn new(stops: [Stop; NUM_STOPS]) -> Self {
         StopSchedule { stops }
+    }
+
+    pub fn stops(&self) -> &[Stop; NUM_STOPS] {
+        &self.stops
     }
 
     pub fn first_stop(&self) -> Option<&Stop> {

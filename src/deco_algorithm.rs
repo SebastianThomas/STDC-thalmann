@@ -188,6 +188,10 @@ fn calc_deco_schedule_intern<
         let (_gas_idx, breathing_gas) = mix.unwrap();
 
         let depth_idx = get_depth_idx(stop_depth);
+        #[cfg(feature = "lin_exp")]
+        let mvalue_idx = depth_idx
+            .checked_sub(1)
+            .ok_or("Thalmann stop depths start at 3m.")?;
         if depth_idx > NUM_STOPS {
             return Err("Not enough space to store stops for this dive.");
         }
@@ -195,6 +199,9 @@ fn calc_deco_schedule_intern<
         if !stops[depth_idx].duration().is_zero() {
             return Err("Attempting to override / repeat stop.");
         }
+        #[cfg(feature = "lin_exp")]
+        assert!(stop_depth == m_values[mvalue_idx].depth);
+        #[cfg(not(feature = "lin_exp"))]
         assert!(stop_depth == m_values[depth_idx].depth);
         let stop_duration =
             compute_stop_time(&loading, tissues, breathing_gas, m_values, stop_depth);

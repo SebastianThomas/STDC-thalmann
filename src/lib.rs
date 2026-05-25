@@ -13,6 +13,9 @@
 #![feature(const_cmp)]
 #![feature(derive_const)]
 
+#[cfg(test)]
+extern crate std;
+
 pub mod deco_algorithm;
 pub mod depth_utils;
 pub mod display_utils;
@@ -28,6 +31,7 @@ pub mod pressure_unit;
 pub mod setup;
 mod time_utils;
 mod update;
+mod update_common;
 mod update_exp;
 mod update_exp_lin;
 

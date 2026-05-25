@@ -17,7 +17,7 @@ pub const fn get_depth(d_idx: usize) -> Pa {
 * If called with d in msw, no further unit conversion will be necessary.
 */
 pub fn get_depth_idx<P: Pressure>(d: P) -> usize {
-    assert!(d.to_f32() > 0.0);
+    assert!(d.to_f32() >= 0.0);
     (d.to_msw().to_f32() / DINC.to_msw().to_f32()).ceil() as usize
 }
 

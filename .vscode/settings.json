@@ -1,0 +1,10 @@
+{
+  "chat.tools.terminal.autoApprove": {
+    "cargo test": true,
+    "/^cargo run --example sample_dive_svg$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "pdftotext": true
+  }
+}

@@ -42,8 +42,8 @@ macro_rules! pressure_unit {
             }
         }
 
-        impl const AbsPressure for $name {}
-        impl const Pressure for $name {
+        const impl AbsPressure for $name {}
+        const impl Pressure for $name {
             fn to_pa(self) -> Pa {
                 Pa(self.0 * $to_pa_factor)
             }
@@ -72,36 +72,36 @@ macro_rules! pressure_unit {
         }
 
         /// Arithmetic
-        impl const Add for $name {
+        const impl Add for $name {
             type Output = $name;
             fn add(self, rhs: $name) -> $name {
                 $name(self.0 + rhs.0)
             }
         }
-        impl const AddAssign for $name {
+        const impl AddAssign for $name {
             fn add_assign(&mut self, rhs: $name) {
                 self.0 += rhs.0;
             }
         }
-        impl const Sub for $name {
+        const impl Sub for $name {
             type Output = $name;
             fn sub(self, rhs: $name) -> $name {
                 $name(self.0 - rhs.0)
             }
         }
-        impl const Mul<f32> for $name {
+        const impl Mul<f32> for $name {
             type Output = $name;
             fn mul(self, rhs: f32) -> $name {
                 $name(self.0 * rhs)
             }
         }
-        impl const Div<f32> for $name {
+        const impl Div<f32> for $name {
             type Output = $name;
             fn div(self, rhs: f32) -> $name {
                 $name(self.0 / rhs)
             }
         }
-        impl const Div<$name> for $name {
+        const impl Div<$name> for $name {
             type Output = f32;
             fn div(self, rhs: $name) -> f32 {
                 self.0 / rhs.0
@@ -123,7 +123,7 @@ macro_rules! pressure_unit_relative {
             }
         }
 
-        impl const Pressure for $name {
+        const impl Pressure for $name {
             fn to_pa(self) -> Pa {
                 Pa((self.0 * $to_pa_factor) + 1E5)
             }
@@ -165,43 +165,43 @@ pressure_unit_relative!(msw, 1.013E4);
 pressure_unit_relative!(fsw, FEET_FACTOR);
 
 // -------------------- From<Pa> implementations --------------------
-impl const From<Pa> for hPa {
+const impl From<Pa> for hPa {
     fn from(value: Pa) -> Self {
         Self(value.0 / 100.0)
     }
 }
-impl const From<Pa> for kPa {
+const impl From<Pa> for kPa {
     fn from(value: Pa) -> Self {
         Self(value.0 / 1000.0)
     }
 }
-impl const From<Pa> for Bar {
+const impl From<Pa> for Bar {
     fn from(value: Pa) -> Self {
         Self(value.0 / 100_000.0)
     }
 }
-impl const From<Pa> for msw {
+const impl From<Pa> for msw {
     fn from(value: Pa) -> Self {
         Self((value.0 - 1E5) / 1.013E4)
     }
 }
-impl const From<Pa> for fsw {
+const impl From<Pa> for fsw {
     fn from(value: Pa) -> Self {
         Self((value.0 - 1E5) / FEET_FACTOR)
     }
 }
 
-impl const From<hPa> for Pa {
+const impl From<hPa> for Pa {
     fn from(value: hPa) -> Self {
         Self(value.0 * 100.0)
     }
 }
-impl const From<kPa> for Pa {
+const impl From<kPa> for Pa {
     fn from(value: kPa) -> Self {
         Self(value.0 * 1000.0)
     }
 }
-impl const From<Bar> for Pa {
+const impl From<Bar> for Pa {
     fn from(value: Bar) -> Self {
         Self(value.0 * 100_000.0)
     }

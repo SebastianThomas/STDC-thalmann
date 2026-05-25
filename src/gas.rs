@@ -324,16 +324,16 @@ pub fn best_available_mix<'a, P: const AbsPressure, const G: usize, const NUM_TS
         .filter(|(_i, g)| g.fo2() <= best_mix_fo2)
         .filter(|(_i, g)| {
             ignore_isobaric_counterdiffusion
-                || tissue_loading.is_isobaric_counterdiffusion(depth, *g)
+                || !tissue_loading.is_isobaric_counterdiffusion(depth, *g)
         })
         .filter(|(_i, g)| gas_density.no_violation(depth, g))
-        .reduce(|a, b| {
-            let better_fo2 = a.1.fo2() > b.1.fo2();
-            let same_fo2_better_he = a.1.fo2() == b.1.fo2() && a.1.fhe() > b.1.fhe();
+        .reduce(|(ai, ag), (bi, bg)| {
+            let better_fo2 = ag.fo2() > bg.fo2();
+            let same_fo2_better_he = ag.fo2() == bg.fo2() && ag.fhe() > bg.fhe();
             if better_fo2 || same_fo2_better_he {
-                a
+                (ai, ag)
             } else {
-                b
+                (bi, bg)
             }
         })
 }
@@ -525,5 +525,55 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn is_isobaric_counterdiffusion_true() {
+        let depth = msw::new(30.0).to_pa();
+        let tissues: TissuesLoading<1, Pa> = TissuesLoading {
+            n2: [depth * 0.1],
+            he: [depth * 0.7],
+        };
+        // AIR has relatively high N2 and negligible He compared to the tissue above
+        let new_gas = AIR;
+        assert_eq!(tissues.is_isobaric_counterdiffusion(depth, &new_gas), true);
+    }
+
+    #[test]
+    fn is_isobaric_counterdiffusion_false_when_no_match() {
+        let depth = msw::new(30.0).to_pa();
+        let tissues: TissuesLoading<1, Pa> = TissuesLoading {
+            n2: [depth * 0.5],
+            he: [depth * 0.1],
+        };
+        // TMX10_80 is helium rich; this should not trigger the check (he > new_he false)
+        let new_gas = TMX10_80;
+        assert_eq!(tissues.is_isobaric_counterdiffusion(depth, &new_gas), false);
+    }
+
+    #[test]
+    fn is_isobaric_counterdiffusion_any_tissue_true() {
+        let depth = msw::new(30.0).to_pa();
+        let tissues: TissuesLoading<2, Pa> = TissuesLoading {
+            n2: [depth * 0.5, depth * 0.1],
+            he: [depth * 0.1, depth * 0.7],
+        };
+        let new_gas = AIR;
+        // second tissue should trigger the condition
+        assert_eq!(tissues.is_isobaric_counterdiffusion(depth, &new_gas), true);
+    }
+
+    #[test]
+    fn gas_density_no_violation_and_violation() {
+        let depth = msw::new(50.0).to_pa();
+        // TMX10_80 is helium rich and generally light
+        let light_gas = TMX10_80;
+        let settings_ok = GasDensitySettings::limit_g_l(gL::new(10.0));
+        assert_eq!(settings_ok.no_violation(depth, &light_gas), true);
+
+        let deep = msw::new(100.0).to_pa();
+        let heavy_gas = AIR;
+        let settings_strict = GasDensitySettings::limit_g_l(gL::new(1.0));
+        assert_eq!(settings_strict.no_violation(deep, &heavy_gas), false);
     }
 }
