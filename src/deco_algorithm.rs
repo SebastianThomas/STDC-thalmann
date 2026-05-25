@@ -196,9 +196,6 @@ fn calc_deco_schedule_intern<
             return Err("Not enough space to store stops for this dive.");
         }
         let depth_idx = stop_idx_in_stops(NUM_STOPS, depth_idx);
-        if !stops[depth_idx].duration().is_zero() {
-            return Err("Attempting to override / repeat stop.");
-        }
         #[cfg(feature = "lin_exp")]
         assert!(stop_depth == m_values[mvalue_idx].depth);
         #[cfg(not(feature = "lin_exp"))]
@@ -213,7 +210,20 @@ fn calc_deco_schedule_intern<
             stop_depth.to_pa().into(),
             &stop_duration,
         );
-        stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(*breathing_gas));
+
+        // If there is already a scheduled stop at this depth, merge durations
+        // but require the newly added chunk to be smaller than the existing
+        // total to ensure the added amount decreases over successive merges.
+        let existing = stops[depth_idx].duration();
+        if existing.is_zero() {
+            stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(*breathing_gas));
+        } else {
+            if stop_duration >= existing {
+                return Err("Attempting to override / repeat stop.");
+            }
+            let new_total = existing + stop_duration;
+            stops[depth_idx] = Stop::new(stop_depth, new_total, Some(*breathing_gas));
+        }
     }
     Ok(StopSchedule::new(stops))
 }

@@ -24,7 +24,7 @@ const THALMANN_PH2O: Pa = Pa::new(0.0);
 #[cfg(feature = "lin_exp")]
 const THALMANN_PBOVP: Pa = Pa::new(0.0);
 #[cfg(feature = "lin_exp")]
-const LIN_EXP_STOP_EPSILON_PA: Pa = Pa::new(100.0);
+const LIN_EXP_STOP_EPSILON_PA: Pa = Pa::new(10.0);
 
 #[cfg(feature = "lin_exp")]
 fn thalmann_crossover_pressure<P: const AbsPressure>(ambient_pressure: P) -> P {
