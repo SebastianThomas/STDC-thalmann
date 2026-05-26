@@ -5,6 +5,15 @@
       "approve": true,
       "matchCommandLine": true
     },
-    "pdftotext": true
+    "pdftotext": true,
+    "/^cargo run --example _100m_ascent_sim --no-default-features$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "cargo run": true,
+    "/^cargo build --no-default-features$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
   }
 }

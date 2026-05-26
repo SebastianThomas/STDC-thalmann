@@ -1,4 +1,4 @@
-use core::{time::Duration};
+use core::time::Duration;
 #[allow(unused)]
 use num::Float;
 
@@ -8,7 +8,7 @@ use crate::{
     depth_utils::get_depth_idx,
     gas::{Gas, GasMix, HE_IDX, N2_IDX, TissuesLoading},
     mptt::Tissue,
-    pressure_unit::{AbsPressure, Pressure, msw, Pa},
+    pressure_unit::{AbsPressure, Pa, Pressure, msw},
     time_utils::max,
     update_common::exp_pressure,
 };
@@ -114,6 +114,7 @@ pub fn compute_stop_time_lin_exp<const NUM_TISSUES: usize, P: const AbsPressure>
     breathing_gas: &GasMix<f32>,
     m_values: &MValues<P>,
     stop_depth: msw,
+    gf: f32,
 ) -> Duration {
     let stop_depth_pa = stop_depth.to_pa();
     let stop_idx = thalmann_mvalue_idx(stop_depth);
@@ -128,30 +129,33 @@ pub fn compute_stop_time_lin_exp<const NUM_TISSUES: usize, P: const AbsPressure>
     let p_inspired: P = inspired_inert_pa.into();
 
     for tissue_idx in 0..NUM_TISSUES {
-        let p_tissue = loading.n2[tissue_idx] + loading.he[tissue_idx] + LIN_EXP_STOP_EPSILON_PA.into();
+        let p_tissue =
+            loading.n2[tissue_idx] + loading.he[tissue_idx] + LIN_EXP_STOP_EPSILON_PA.into();
         // Use desaturation rate (KDSAT = KSAT * SDR) when computing stop times
         let k = k_values_desat[tissue_idx];
         let m_value = m_values[stop_idx].max_saturation[tissue_idx];
+        let p_amb: P = stop_depth_pa.into();
+        let target_m = super::update::allowed_with_gf(p_amb, m_value, gf);
 
         // TODO: Plus or minus epsilon
-        if p_tissue <= m_value {
+        if p_tissue <= target_m {
             // Tissue safe
             continue;
         }
 
         let t_tissue = if p_tissue <= crossover_pressure {
             // Below the crossover pressure: exponential washout to the stop limit.
-            -((m_value - p_inspired) / (p_tissue - p_inspired)).ln() / k
-        } else if m_value >= crossover_pressure {
+            -((target_m - p_inspired) / (p_tissue - p_inspired)).ln() / k
+        } else if target_m >= crossover_pressure {
             // The ceiling is still in the linear region, so stop once the tissue
             // reaches the current stop limit.
-            (p_tissue - m_value) / ((p_tissue - p_inspired) * k)
+            (p_tissue - target_m) / ((p_tissue - p_inspired) * k)
         } else {
             // Above the crossover pressure and the stop limit lies below it:
             // linear first, then exponential to the stop limit.
             let linear_rate = (p_tissue - p_inspired) * k;
             let t_linear = (p_tissue - crossover_pressure) / linear_rate;
-            let t_exp = -((m_value - p_inspired) / (crossover_pressure - p_inspired)).ln() / k;
+            let t_exp = -((target_m - p_inspired) / (crossover_pressure - p_inspired)).ln() / k;
             t_linear + t_exp
         };
 
@@ -169,9 +173,9 @@ mod tests {
         gas::{AIR, NX50, NX100, TMX18_45, TissuesLoading},
         loadings_from_dive_profile,
         pressure_unit::{Pa, Pressure, msw},
-        update::first_stop_depth,
+        update::first_stop_depth_with_gf,
     };
-    use core::{f32::consts::LN_2};
+    use core::f32::consts::LN_2;
     use std::println;
     #[test]
     fn compute_first_stops_from_realistic_profile() {
@@ -231,7 +235,7 @@ mod tests {
             loadings_from_dive_profile(&TISSUES, &profile, &MVALUES, msw::new(0.0).to_pa());
 
         for _step in 0..3 {
-            let Some(stop_depth) = first_stop_depth(&current_loading, &MVALUES) else {
+            let Some(stop_depth) = first_stop_depth_with_gf(&current_loading, &MVALUES, 1.0) else {
                 panic!("Expected at least five stops, got: {:?}", _step);
             };
             let stop_duration = compute_stop_time_lin_exp(
@@ -240,6 +244,7 @@ mod tests {
                 &gases[0],
                 &MVALUES,
                 stop_depth,
+                1.0,
             );
             println!("Stop {:?}: {:?}", stop_depth, stop_duration);
             assert!(!stop_duration.is_zero());

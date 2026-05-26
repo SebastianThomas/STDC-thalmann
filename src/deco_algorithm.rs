@@ -5,15 +5,16 @@ use crate::setup::{NUM_STOP_DEPTHS, NUM_TISSUES};
 use crate::depth_utils::{get_depth, get_depth_idx};
 use crate::dive::{Stop, StopSchedule};
 use crate::gas::{GasDensitySettings, GasMix, TissuesLoading, best_available_mix};
-use crate::mptt::{self, Tissue};
+use crate::mptt;
+#[cfg(feature = "lin_exp")]
+use crate::mptt::Tissue;
 #[cfg(not(feature = "lin_exp"))]
-use crate::mptt_buehlmann::{self, NUM_STOP_DEPTHS_BUEHLMANN, NUM_TISSUES_BUEHLMANN};
+use crate::mptt_buehlmann::{self, BuehlmannTissue as Tissue};
 #[cfg(feature = "lin_exp")]
 use crate::mptt_thalmann::{self, NUM_STOP_DEPTHS_THALMANN, NUM_TISSUES_THALMANN};
 use crate::pressure_unit::{AbsPressure, Pa, Pressure, msw};
-use crate::setup::{LAST_STOP, set_m};
-use crate::time_utils::get_time_ms_rel;
-use crate::update::first_stop_depth;
+use crate::setup::set_m;
+use crate::update::first_stop_depth_with_gf;
 #[cfg(not(feature = "lin_exp"))]
 pub use crate::update_exp::{
     compute_stop_time_exp as compute_stop_time, update_model_state_exp as update_model_state,
@@ -39,95 +40,57 @@ pub enum DecoAlgorithmResult {
 pub const MVALUES: mptt::MValues<Pa, { NUM_TISSUES_THALMANN }, { NUM_STOP_DEPTHS_THALMANN }> =
     set_m(0);
 #[cfg(not(feature = "lin_exp"))]
-pub const MVALUES: mptt::MValues<Pa, { NUM_TISSUES_BUEHLMANN }, { NUM_STOP_DEPTHS_BUEHLMANN }> =
-    set_m(0);
+pub const MVALUES: mptt::MValues<Pa, { NUM_TISSUES }, { NUM_STOP_DEPTHS }> = set_m(0);
 #[cfg(feature = "lin_exp")]
 pub const TISSUES: [Tissue; NUM_TISSUES_THALMANN] = mptt_thalmann::TISSUES;
 #[cfg(not(feature = "lin_exp"))]
-pub const TISSUES: [Tissue; NUM_TISSUES_BUEHLMANN] = mptt_buehlmann::TISSUES;
+pub const TISSUES: [Tissue; NUM_TISSUES] = mptt_buehlmann::TISSUES;
 
 pub type MValues<P: const AbsPressure> = mptt::MValues<P, { NUM_TISSUES }, { NUM_STOP_DEPTHS }>;
 
-pub fn compute_deco_algorithm<P: Pressure, const NUM_GASES: usize>(
-    loading: &mut TissuesLoading<NUM_TISSUES, Pa>,
-    max_depth: P,
-    gases: &[GasMix<f32>; NUM_GASES],
-) -> DecoAlgorithmResult
-where
-    [(); NUM_GASES - 1]:,
-{
-    if max_depth.to_msw() < LAST_STOP {
-        return DecoAlgorithmResult::ErrorResult {
-            reason: "Maximum depth is shallower than the last stop.",
+pub struct DecoSettings<P: const AbsPressure> {
+    pub gas_density_settings: GasDensitySettings,
+    pub max_deco_po2: P,
+    pub ignore_icd: bool,
+    pub gf_low: f32,
+    pub gf_high: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GradientFactors {
+    pub low: f32,
+    pub high: f32,
+}
+
+fn compute_initial_first_stop<P: const AbsPressure>(
+    loading: &TissuesLoading<NUM_TISSUES, P>,
+    m_values: &MValues<P>,
+    gf: GradientFactors,
+) -> Option<msw> {
+    first_stop_depth_with_gf(loading, m_values, gf.low)
+}
+
+fn interpolate_gf_for_depth(initial_first_stop: msw, stop_depth: msw, gf: GradientFactors) -> f32 {
+    if initial_first_stop.to_msw().to_f32() <= 0.0 {
+        gf.high
+    } else {
+        let t = (initial_first_stop.to_msw().to_f32() - stop_depth.to_msw().to_f32())
+            / initial_first_stop.to_msw().to_f32();
+        let t = if t < 0.0 {
+            0.0
+        } else if t > 1.0 {
+            1.0
+        } else {
+            t
         };
-    }
-
-    let mut prev_ms: usize = 0;
-    let mut current_ms: usize = 0;
-
-    let m_values = &MVALUES;
-
-    // Current depth idx
-    let mut current_maximum_allowed_depth: msw = max_depth.to_msw();
-    // let mut d_delta: usize = (max_depth.to_msw().0 / DINC.to_msw().0).ceil() as usize;
-
-    // TODO: Select and be able to change current gas
-    let current_gas = 0;
-
-    // Last times
-    get_time_ms_rel(&mut current_ms);
-
-    // Iteration count
-    let mut iter_count = 0;
-
-    loop {
-        iter_count += 1;
-        get_time_ms_rel(&mut current_ms);
-        while prev_ms >= current_ms {
-            // TODO: Better than busy waiting
-            get_time_ms_rel(&mut current_ms);
-        }
-
-        let current_depth = current_maximum_allowed_depth; // TODO: Measure actual depth
-        if current_maximum_allowed_depth.to_msw().to_f32() <= 0.0 {
-            return DecoAlgorithmResult::FinishedResult {
-                iterations: iter_count,
-                reason: "Current maximum allowed depth Smaller than 0",
-            };
-        }
-
-        let duration = Duration::from_millis((current_ms - prev_ms) as u64);
-        prev_ms = current_ms;
-        update_model_state(
-            loading,
-            &TISSUES,
-            m_values,
-            &gases[current_gas],
-            current_depth.to_pa(),
-            &duration,
-        );
-        let first_stop = first_stop_depth(loading, m_values);
-        if first_stop.is_none() {
-            return DecoAlgorithmResult::FinishedResult {
-                iterations: iter_count,
-                reason: "No First Stop remaining",
-            };
-        }
-        current_maximum_allowed_depth = first_stop.unwrap();
-        let _stop_time = compute_stop_time(
-            loading,
-            &TISSUES,
-            &gases[current_gas],
-            m_values,
-            current_maximum_allowed_depth,
-        );
+        gf.low + (gf.high - gf.low) * t
     }
 }
 
 #[cfg(feature = "lin_exp")]
 type TissuesLoadingNumTissues<P> = TissuesLoading<{ NUM_TISSUES_THALMANN }, P>;
 #[cfg(not(feature = "lin_exp"))]
-type TissuesLoadingNumTissues<P> = TissuesLoading<{ NUM_TISSUES_BUEHLMANN }, P>;
+type TissuesLoadingNumTissues<P> = TissuesLoading<{ NUM_TISSUES }, P>;
 
 pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
     loading: &TissuesLoadingNumTissues<Pa>,
@@ -135,6 +98,10 @@ pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
     gases_enabled: &[bool; NUM_GASES],
     deco_settings: &DecoSettings<Pa>,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
+    let gf = GradientFactors {
+        low: deco_settings.gf_low,
+        high: deco_settings.gf_high,
+    };
     calc_deco_schedule_intern(
         loading,
         &TISSUES,
@@ -142,12 +109,8 @@ pub fn calc_deco_schedule<const NUM_STOPS: usize, const NUM_GASES: usize>(
         gases_enabled,
         &MVALUES,
         deco_settings,
+        gf,
     )
-}
-
-pub struct DecoSettings<P: const AbsPressure> {
-    pub gas_density_settings: GasDensitySettings,
-    pub max_deco_po2: P,
 }
 
 fn calc_deco_schedule_intern<
@@ -161,6 +124,7 @@ fn calc_deco_schedule_intern<
     gases_enabled: &[bool; NUM_GASES],
     m_values: &MValues<P>,
     deco_settings: &DecoSettings<P>,
+    gf: GradientFactors,
 ) -> Result<StopSchedule<NUM_STOPS>, &'static str> {
     assert!(NUM_STOPS < NUM_STOP_DEPTHS);
 
@@ -172,14 +136,27 @@ fn calc_deco_schedule_intern<
         stops[stop_idx_in_stops(NUM_STOPS, i)] =
             Stop::new(get_depth(i).to_msw(), Duration::from_millis(0), None);
     }
-    while let Some(stop_depth) = first_stop_depth(&loading, m_values) {
+    // Determine initial first stop using GFLow; if none, return empty schedule
+    let initial_first_stop = match compute_initial_first_stop(&loading, m_values, gf) {
+        Some(d) => d,
+        None => return Ok(StopSchedule::new(stops)),
+    };
+
+    let mut iterations: usize = 0;
+    const MAX_ITER: usize = 1024;
+    let mut next_stop = Some(initial_first_stop);
+    while let Some(stop_depth) = next_stop {
+        iterations += 1;
+        if iterations > MAX_ITER {
+            return Err("Exceeded max iterations building schedule");
+        }
         let mix = best_available_mix(
             deco_settings.max_deco_po2,
             stop_depth.to_pa().into(),
             gases,
             gases_enabled,
             &loading,
-            false,
+            deco_settings.ignore_icd,
             &deco_settings.gas_density_settings,
         );
         if mix.is_none() {
@@ -198,10 +175,20 @@ fn calc_deco_schedule_intern<
         let depth_idx = stop_idx_in_stops(NUM_STOPS, depth_idx);
         #[cfg(feature = "lin_exp")]
         assert!(stop_depth == m_values[mvalue_idx].depth);
-        #[cfg(not(feature = "lin_exp"))]
-        assert!(stop_depth == m_values[depth_idx].depth);
-        let stop_duration =
-            compute_stop_time(&loading, tissues, breathing_gas, m_values, stop_depth);
+        let gf_stop = interpolate_gf_for_depth(initial_first_stop, stop_depth, gf);
+
+        let stop_duration = compute_stop_time(
+            &loading,
+            tissues,
+            breathing_gas,
+            m_values,
+            stop_depth,
+            gf_stop,
+        );
+        if stop_duration.is_zero() {
+            // nothing to add and no progress — stop scheduling further stops
+            break;
+        }
         update_model_state(
             &mut loading,
             tissues,
@@ -224,6 +211,7 @@ fn calc_deco_schedule_intern<
             let new_total = existing + stop_duration;
             stops[depth_idx] = Stop::new(stop_depth, new_total, Some(*breathing_gas));
         }
+        next_stop = compute_initial_first_stop(&loading, m_values, gf);
     }
     Ok(StopSchedule::new(stops))
 }

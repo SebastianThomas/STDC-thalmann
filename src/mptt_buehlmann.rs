@@ -8,13 +8,13 @@ pub const NUM_STOP_DEPTHS_BUEHLMANN: usize = 32;
 pub const DEFAULT_BUEHLMANN_HE_RATIO: f32 = 0.0;
 
 pub struct BuehlmannTissue {
-    n2: BuehlmannTissueGas,
-    he: BuehlmannTissueGas,
+    pub n2: BuehlmannTissueGas,
+    pub he: BuehlmannTissueGas,
 }
 pub struct BuehlmannTissueGas {
-    half_time: f32,
-    a: msw,
-    b: f32,
+    pub half_time: f32,
+    pub a: msw,
+    pub b: f32,
 }
 
 pub const TISSUES: [BuehlmannTissue; NUM_TISSUES_BUEHLMANN] = [
@@ -296,9 +296,9 @@ const fn buehlmann_saturation_tolerance(
     let a_combined = a_n2_pa * (1.0 - r) + a_he_pa * r;
     let b_combined = b_n2 * (1.0 - r) + b_he * r;
     (
-        a_combined + p_amb / b_combined,
-        tissue.n2.a.to_pa() + p_amb / tissue.n2.b,
-        tissue.he.a.to_pa() + p_amb / tissue.he.b,
+        a_combined + p_amb * b_combined,
+        tissue.n2.a.to_pa() + p_amb * tissue.n2.b,
+        tissue.he.a.to_pa() + p_amb * tissue.he.b,
     )
 }
 

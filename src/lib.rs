@@ -5,13 +5,14 @@
 #![feature(const_trait_impl)]
 #![feature(const_default)]
 #![feature(const_ops)]
-// #![feature(const_option_ops)]
-// #![feature(const_array)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 #![feature(const_convert)]
 #![feature(const_cmp)]
 #![feature(derive_const)]
+// Only required for buehlmann / non-"lin_exp"
+#![feature(const_array)]
+#![feature(const_option_ops)]
 
 #[cfg(test)]
 extern crate std;
@@ -35,4 +36,4 @@ mod update_common;
 mod update_exp;
 mod update_exp_lin;
 
-pub use update::loadings_from_dive_profile;
+pub use update::{loadings_from_dive_profile, tissue_mvalues_with_gf};
