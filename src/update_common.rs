@@ -35,8 +35,8 @@ pub(crate) fn mixed_buehlmann_mvalue(
     use crate::mptt_buehlmann::TISSUES as BUEHL_TISSUES;
     let total = p_n2 + p_he;
     if total.to_f32() <= 0.0 {
-            return BUEHL_TISSUES[tissue_idx].n2.a.to_pa()
-                + stop_depth_pa * BUEHL_TISSUES[tissue_idx].n2.b;
+        return BUEHL_TISSUES[tissue_idx].n2.a.to_pa()
+            + stop_depth_pa * BUEHL_TISSUES[tissue_idx].n2.b;
     }
     let a_n2 = BUEHL_TISSUES[tissue_idx].n2.a.to_pa();
     let a_he = BUEHL_TISSUES[tissue_idx].he.a.to_pa();

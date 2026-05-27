@@ -34,6 +34,7 @@ mod time_utils;
 mod update;
 mod update_common;
 mod update_exp;
+#[cfg(feature = "lin_exp")]
 mod update_exp_lin;
 
 pub use update::{loadings_from_dive_profile, tissue_mvalues_with_gf};

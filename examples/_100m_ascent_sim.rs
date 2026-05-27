@@ -83,6 +83,7 @@ fn main() {
         ignore_icd: false,
         gf_low: 0.50,
         gf_high: 0.85,
+        last_deco_stop: msw::new(3.0),
     };
 
     let schedule =

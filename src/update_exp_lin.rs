@@ -115,9 +115,11 @@ pub fn compute_stop_time_lin_exp<const NUM_TISSUES: usize, P: const AbsPressure>
     m_values: &MValues<P>,
     stop_depth: msw,
     gf: f32,
+    last_deco_stop: msw,
 ) -> Duration {
     let stop_depth_pa = stop_depth.to_pa();
     let stop_idx = thalmann_mvalue_idx(stop_depth);
+    let is_last_stop = stop_depth.to_msw().to_f32() <= last_deco_stop.to_msw().to_f32();
     let mut t_stop_mins = 0.0;
     let crossover_pressure: P = thalmann_crossover_pressure(stop_depth_pa.into());
 
@@ -127,13 +129,22 @@ pub fn compute_stop_time_lin_exp<const NUM_TISSUES: usize, P: const AbsPressure>
     // Use total inert pressure (N2 + He) per tissue and total inspired inert.
     let inspired_inert_pa = stop_depth_pa * (breathing_gas.fn2() + breathing_gas.fhe());
     let p_inspired: P = inspired_inert_pa.into();
+    let surface_targets: [P; NUM_TISSUES] = core::array::from_fn(|tissue_idx| {
+        let shallow = m_values[0].max_saturation[tissue_idx];
+        let next = m_values[1].max_saturation[tissue_idx];
+        shallow - (next - shallow)
+    });
 
     for tissue_idx in 0..NUM_TISSUES {
         let p_tissue =
             loading.n2[tissue_idx] + loading.he[tissue_idx] + LIN_EXP_STOP_EPSILON_PA.into();
         // Use desaturation rate (KDSAT = KSAT * SDR) when computing stop times
         let k = k_values_desat[tissue_idx];
-        let m_value = m_values[stop_idx].max_saturation[tissue_idx];
+        let m_value = if is_last_stop || stop_idx == 0 {
+            surface_targets[tissue_idx]
+        } else {
+            m_values[stop_idx - 1].max_saturation[tissue_idx]
+        };
         let p_amb: P = stop_depth_pa.into();
         let target_m = super::update::allowed_with_gf(p_amb, m_value, gf);
 
@@ -245,6 +256,7 @@ mod tests {
                 &MVALUES,
                 stop_depth,
                 1.0,
+                msw::new(3.0),
             );
             println!("Stop {:?}: {:?}", stop_depth, stop_duration);
             assert!(!stop_duration.is_zero());

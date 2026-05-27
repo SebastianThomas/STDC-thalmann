@@ -41,7 +41,7 @@ pub fn update_model_state_exp<P: Pressure + const AbsPressure>(
     let current_depth_pa: Pa = current_depth.to_pa();
 
     for gas_idx in [N2_IDX, HE_IDX] {
-        let mut ks: [f32; { TISSUES.len() }] = [0.0; TISSUES.len()];
+        let mut ks: [f32; TISSUES.len()] = [0.0; TISSUES.len()];
         for tissue_idx in 0..TISSUES.len() {
             ks[tissue_idx] = match gas_idx {
                 N2_IDX => LN_2 / tissues[tissue_idx].n2.half_time,
@@ -50,7 +50,7 @@ pub fn update_model_state_exp<P: Pressure + const AbsPressure>(
             };
         }
 
-        let (gas_loading, p_inspired): ([P; { TISSUES.len() }], P) = match gas_idx {
+        let (gas_loading, p_inspired): ([P; TISSUES.len()], P) = match gas_idx {
             N2_IDX => (loading.n2, breathing_gas.pn2(current_depth)),
             HE_IDX => (loading.he, breathing_gas.phe(current_depth)),
             _ => unreachable!(),
@@ -80,8 +80,10 @@ pub fn compute_stop_time_exp<P: const AbsPressure>(
     m_values: &MValues<P>,
     stop_depth: msw,
     gf: f32,
+    last_deco_stop: msw,
 ) -> Duration {
     let stop_depth_idx = get_depth_idx(stop_depth);
+    let is_last_stop = stop_depth.to_msw().to_f32() <= last_deco_stop.to_msw().to_f32();
 
     let mut t_stop_mins: f32 = 0.0;
     // Use total inert pressure (N2 + He) per tissue and total inspired inert.
@@ -92,7 +94,14 @@ pub fn compute_stop_time_exp<P: const AbsPressure>(
         let p_tissue = p_n2 + p_he;
 
         // Prefer mixed Buehlmann a/b when available; otherwise use table entry
-        let m_value = if p_tissue.to_f32() > 0.0 {
+        let m_value = if is_last_stop {
+            crate::update_common::mixed_buehlmann_mvalue(
+                tissue_idx,
+                p_n2,
+                p_he,
+                msw::new(0.0).to_pa(),
+            )
+        } else if p_tissue.to_f32() > 0.0 {
             crate::update_common::mixed_buehlmann_mvalue(tissue_idx, p_n2, p_he, stop_depth.to_pa())
         } else {
             m_values[stop_depth_idx].max_saturation[tissue_idx].to_pa()
@@ -115,7 +124,6 @@ pub fn compute_stop_time_exp<P: const AbsPressure>(
         } else {
             k_n2
         };
-
         let t_gas_tissue = -((target_m - inspired_inert) / (p_tissue - inspired_inert)).ln() / k;
         t_stop_mins = max(t_stop_mins, t_gas_tissue);
     }

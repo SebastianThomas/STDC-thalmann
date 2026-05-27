@@ -48,12 +48,15 @@ pub const TISSUES: [Tissue; NUM_TISSUES] = mptt_buehlmann::TISSUES;
 
 pub type MValues<P: const AbsPressure> = mptt::MValues<P, { NUM_TISSUES }, { NUM_STOP_DEPTHS }>;
 
+const STOP_SAFETY_MARGIN: Duration = Duration::from_secs(5);
+
 pub struct DecoSettings<P: const AbsPressure> {
     pub gas_density_settings: GasDensitySettings,
     pub max_deco_po2: P,
     pub ignore_icd: bool,
     pub gf_low: f32,
     pub gf_high: f32,
+    pub last_deco_stop: msw,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -84,6 +87,49 @@ fn interpolate_gf_for_depth(initial_first_stop: msw, stop_depth: msw, gf: Gradie
             t
         };
         gf.low + (gf.high - gf.low) * t
+    }
+}
+
+fn add_stop_safety_margin(stop_duration: Duration) -> Duration {
+    stop_duration.saturating_add(STOP_SAFETY_MARGIN)
+}
+
+fn compute_next_stop_depth<P: const AbsPressure>(
+    loading: &TissuesLoading<NUM_TISSUES, P>,
+    m_values: &MValues<P>,
+    initial_first_stop: msw,
+    current_stop_depth: msw,
+    gf: GradientFactors,
+    last_deco_stop: msw,
+) -> Option<msw> {
+    if current_stop_depth.to_msw().to_f32() <= last_deco_stop.to_msw().to_f32() {
+        return None;
+    }
+
+    let current_depth_idx = get_depth_idx(current_stop_depth);
+    if current_depth_idx <= 1 {
+        return None;
+    }
+
+    let next_depth = get_depth(current_depth_idx - 1).to_msw();
+    let next_gf = interpolate_gf_for_depth(initial_first_stop, next_depth, gf);
+
+    match first_stop_depth_with_gf(loading, m_values, next_gf) {
+        Some(depth) if depth.to_msw().to_f32() < last_deco_stop.to_msw().to_f32() => {
+            Some(last_deco_stop)
+        }
+        Some(depth) => Some(depth),
+        None => {
+            // No deeper first-stop found for the interpolated GF. If the next
+            // shallower rung is at or above the configured `last_deco_stop`,
+            // enforce that floor as the final stop; otherwise, no further
+            // stops are required.
+            if next_depth.to_msw().to_f32() <= last_deco_stop.to_msw().to_f32() {
+                Some(last_deco_stop)
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -184,11 +230,13 @@ fn calc_deco_schedule_intern<
             m_values,
             stop_depth,
             gf_stop,
+            deco_settings.last_deco_stop,
         );
         if stop_duration.is_zero() {
             // nothing to add and no progress — stop scheduling further stops
             break;
         }
+        let stop_duration = add_stop_safety_margin(stop_duration);
         update_model_state(
             &mut loading,
             tissues,
@@ -198,20 +246,23 @@ fn calc_deco_schedule_intern<
             &stop_duration,
         );
 
-        // If there is already a scheduled stop at this depth, merge durations
-        // but require the newly added chunk to be smaller than the existing
-        // total to ensure the added amount decreases over successive merges.
+        // Merge repeated chunks at the same depth into a single scheduled stop.
         let existing = stops[depth_idx].duration();
         if existing.is_zero() {
             stops[depth_idx] = Stop::new(stop_depth, stop_duration, Some(*breathing_gas));
         } else {
-            if stop_duration >= existing {
-                return Err("Attempting to override / repeat stop.");
-            }
-            let new_total = existing + stop_duration;
+            let new_total = existing.saturating_add(stop_duration);
             stops[depth_idx] = Stop::new(stop_depth, new_total, Some(*breathing_gas));
         }
-        next_stop = compute_initial_first_stop(&loading, m_values, gf);
+
+        next_stop = compute_next_stop_depth(
+            &loading,
+            m_values,
+            initial_first_stop,
+            stop_depth,
+            gf,
+            deco_settings.last_deco_stop,
+        );
     }
     Ok(StopSchedule::new(stops))
 }

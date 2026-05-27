@@ -14,6 +14,7 @@
     "/^cargo build --no-default-features$/": {
       "approve": true,
       "matchCommandLine": true
-    }
+    },
+    "cargo t": true
   }
 }

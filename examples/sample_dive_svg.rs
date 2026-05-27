@@ -4,7 +4,7 @@ use std::io::Write;
 use std::time::Duration;
 
 use stdc_diving_algorithms::deco_algorithm::{
-    calc_deco_schedule, update_model_state, DecoSettings, MVALUES, TISSUES,
+    DecoSettings, MVALUES, TISSUES, calc_deco_schedule, update_model_state,
 };
 use stdc_diving_algorithms::dive::{DiveMeasurement, DiveProfile};
 use stdc_diving_algorithms::gas::best_available_mix;
@@ -141,6 +141,7 @@ fn main() {
         ignore_icd: false,
         gf_low: 0.50,
         gf_high: 0.85,
+        last_deco_stop: msw::new(6.0),
     };
 
     let stops = match calc_deco_schedule::<{ NUM_STOP_DEPTHS - 1 }, 3>(
@@ -346,8 +347,7 @@ fn main() {
         ));
         svg.push_str(&format!(
             "<circle cx=\"{:.1}\" cy=\"{:.1}\" r=\"5\" fill=\"#d1495b\" stroke=\"#7a1f2c\"/>\n",
-            stop_start_x,
-            y
+            stop_start_x, y
         ));
         svg.push_str(&format!(
             "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"10\" font-family=\"monospace\" fill=\"#7a1f2c\">stop {:.0}m {:.0}s</text>\n",
