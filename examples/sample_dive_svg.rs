@@ -138,6 +138,7 @@ fn main() {
     let deco_settings = DecoSettings {
         gas_density_settings: GasDensitySettings::Ignore,
         max_deco_po2: MAX_PO2_DECO.to_pa(),
+        surface_pressure: msw::new(0.0).to_pa(),
         ignore_icd: false,
         gf_low: 0.50,
         gf_high: 0.85,

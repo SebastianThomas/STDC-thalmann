@@ -121,6 +121,7 @@ fn main() {
     let settings = DecoSettings {
         gas_density_settings: GasDensitySettings::Ignore,
         max_deco_po2: MAX_PO2_DECO.to_pa(),
+        surface_pressure: msw::new(0.0).to_pa(),
         ignore_icd: true,
         gf_low: 0.50,
         gf_high: 0.85,
@@ -185,14 +186,14 @@ fn main() {
                         let mix6 = best_available_mix(settings.max_deco_po2, msw::new(6.0).to_pa().into(), &gases, &enabled, &loadings, settings.ignore_icd, &settings.gas_density_settings);
                         let mix3 = best_available_mix(settings.max_deco_po2, msw::new(3.0).to_pa().into(), &gases, &enabled, &loadings, settings.ignore_icd, &settings.gas_density_settings);
                         println!("Diagnostic GF: gf6={:.3} gf3={:.3}", gf6, gf3);
-                        if let Some((_i, g6)) = mix6 {
-                            let d6_as_final = compute_stop_time(&loadings, &BUEHL_TISSUES, g6, &MVALUES, msw::new(6.0), gf6, msw::new(6.0));
-                            let d6_with_3floor = compute_stop_time(&loadings, &BUEHL_TISSUES, g6, &MVALUES, msw::new(6.0), gf6, msw::new(3.0));
+                            if let Some((_i, g6)) = mix6 {
+                            let d6_as_final = compute_stop_time(&loadings, &BUEHL_TISSUES, g6, &MVALUES, msw::new(6.0), gf6, msw::new(0.0).to_pa(), msw::new(6.0));
+                            let d6_with_3floor = compute_stop_time(&loadings, &BUEHL_TISSUES, g6, &MVALUES, msw::new(6.0), gf6, msw::new(0.0).to_pa(), msw::new(3.0));
                             println!("compute_stop_time 6m final(6m floor) = {:.1}s", d6_as_final.as_secs_f32());
                             println!("compute_stop_time 6m non-final(3m floor) = {:.1}s", d6_with_3floor.as_secs_f32());
                         }
                         if let Some((_i, g3)) = mix3 {
-                            let d3_final = compute_stop_time(&loadings, &BUEHL_TISSUES, g3, &MVALUES, msw::new(3.0), gf3, msw::new(3.0));
+                            let d3_final = compute_stop_time(&loadings, &BUEHL_TISSUES, g3, &MVALUES, msw::new(3.0), gf3, msw::new(0.0).to_pa(), msw::new(3.0));
                             println!("compute_stop_time 3m final(3m floor) = {:.1}s", d3_final.as_secs_f32());
                         }
                     }
@@ -254,6 +255,7 @@ fn main() {
     // let settings = DecoSettings {
     //     gas_density_settings: GasDensitySettings::Ignore,
     //     max_deco_po2: MAX_PO2_DECO.to_pa(),
+    //     surface_pressure: msw::new(0.0).to_pa(),
     //     ignore_icd: true,
     //     gf_low: 0.50,
     //     gf_high: 0.85,

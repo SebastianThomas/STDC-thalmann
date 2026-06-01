@@ -28,6 +28,10 @@ pub const trait AbsPressure:
 {
 }
 
+pub fn ambient_pressure_at_depth<P: const AbsPressure>(surface_pressure: P, depth: msw) -> P {
+    surface_pressure + (depth.to_pa() - msw::new(0.0).to_pa()).into()
+}
+
 /// Macro to generate pressure unit newtypes + trait impl + arithmetic
 macro_rules! pressure_unit {
     ($name:ident, $to_pa_factor:expr) => {

@@ -4,7 +4,7 @@ use crate::{
     deco_algorithm::{MValues, update_model_state},
     dive::{DiveMeasurement, DiveProfile},
     gas::{AIR, TissuesLoading},
-    pressure_unit::{AbsPressure, Pressure, msw},
+    pressure_unit::{AbsPressure, Pressure, ambient_pressure_at_depth, msw},
     setup::NUM_TISSUES,
 };
 
@@ -23,6 +23,7 @@ pub fn allowed_with_gf<P: const AbsPressure>(p_amb: P, target: P, gf: f32) -> P 
 pub fn tissue_mvalues_with_gf<P: const AbsPressure, const NUM_TISSUES: usize>(
     loading: &TissuesLoading<NUM_TISSUES, P>,
     current_depth: msw,
+    surface_pressure: P,
     tissue_idx: usize,
     gf: f32,
 ) -> (P, P) {
@@ -34,9 +35,9 @@ pub fn tissue_mvalues_with_gf<P: const AbsPressure, const NUM_TISSUES: usize>(
             tissue_idx,
             p_n2,
             p_he,
-            current_depth.to_pa(),
+            ambient_pressure_at_depth(surface_pressure, current_depth),
         );
-        let gf_mvalue = allowed_with_gf(current_depth.to_pa(), absolute, gf);
+        let gf_mvalue = allowed_with_gf(ambient_pressure_at_depth(surface_pressure, current_depth), absolute, gf);
         (absolute.into(), gf_mvalue.into())
     }
 }
@@ -45,6 +46,7 @@ pub fn tissue_mvalues_with_gf<P: const AbsPressure, const NUM_TISSUES: usize>(
 pub fn tissue_mvalues_with_gf<P: const AbsPressure>(
     m_values: &MValues<P>,
     current_depth: msw,
+    surface_pressure: P,
     tissue_idx: usize,
     gf: f32,
 ) -> (P, P) {
@@ -52,7 +54,7 @@ pub fn tissue_mvalues_with_gf<P: const AbsPressure>(
         let depth_idx = get_depth_idx(current_depth);
         let table_idx = depth_idx.min(m_values.len().saturating_sub(1));
         let absolute = m_values[table_idx].max_saturation[tissue_idx];
-        let gf_mvalue = allowed_with_gf(current_depth.to_pa().into(), absolute, gf);
+        let gf_mvalue = allowed_with_gf(ambient_pressure_at_depth(surface_pressure, current_depth), absolute, gf);
         (absolute, gf_mvalue)
     }
 }
@@ -60,6 +62,7 @@ pub fn tissue_mvalues_with_gf<P: const AbsPressure>(
 pub fn first_stop_depth_with_gf<P: const AbsPressure>(
     p: &TissuesLoading<{ NUM_TISSUES }, P>,
     m_values: &MValues<P>,
+    surface_pressure: P,
     gf: f32,
 ) -> Option<msw> {
     for mvalues_at_depth in m_values.iter().rev() {
@@ -77,7 +80,7 @@ pub fn first_stop_depth_with_gf<P: const AbsPressure>(
                     // No inert present, skip
                     continue;
                 }
-                let (_absolute, allowed) = tissue_mvalues_with_gf(p, mvalues_at_depth.depth, i, gf);
+                let (_absolute, allowed) = tissue_mvalues_with_gf(p, mvalues_at_depth.depth, surface_pressure, i, gf);
                 let total_p: P = (p_n2 + p_he).into();
                 if total_p > allowed {
                     return Some(mvalues_at_depth.depth);
@@ -88,7 +91,7 @@ pub fn first_stop_depth_with_gf<P: const AbsPressure>(
             {
                 // Thalmann / precomputed M-values: compare total inert vs table
                 let total_inert = p.n2[i] + p.he[i];
-                let p_amb: P = mvalues_at_depth.depth.to_pa().into();
+                let p_amb: P = ambient_pressure_at_depth(surface_pressure, mvalues_at_depth.depth);
                 let mval = mvalues_at_depth.max_saturation[i];
                 let allowed = allowed_with_gf(p_amb, mval, gf);
                 if total_inert > allowed {

@@ -8,7 +8,7 @@ use crate::{
     depth_utils::get_depth_idx,
     gas::{Gas, GasMix, HE_IDX, N2_IDX, TissuesLoading},
     mptt::Tissue,
-    pressure_unit::{AbsPressure, Pa, Pressure, msw},
+    pressure_unit::{AbsPressure, Pa, Pressure, ambient_pressure_at_depth, msw},
     time_utils::max,
     update_common::exp_pressure,
 };
@@ -115,19 +115,20 @@ pub fn compute_stop_time_lin_exp<const NUM_TISSUES: usize, P: const AbsPressure>
     m_values: &MValues<P>,
     stop_depth: msw,
     gf: f32,
+    surface_pressure: P,
     last_deco_stop: msw,
 ) -> Duration {
-    let stop_depth_pa = stop_depth.to_pa();
     let stop_idx = thalmann_mvalue_idx(stop_depth);
     let is_last_stop = stop_depth.to_msw().to_f32() <= last_deco_stop.to_msw().to_f32();
     let mut t_stop_mins = 0.0;
-    let crossover_pressure: P = thalmann_crossover_pressure(stop_depth_pa.into());
+    let stop_ambient = ambient_pressure_at_depth(surface_pressure, stop_depth);
+    let crossover_pressure: P = thalmann_crossover_pressure(stop_ambient);
 
     // KDSAT values for desaturation (KSAT * SDR)
     let (_k_values_sat, k_values_desat) = crate::update_common::ks_arrays(tissues);
 
     // Use total inert pressure (N2 + He) per tissue and total inspired inert.
-    let inspired_inert_pa = stop_depth_pa * (breathing_gas.fn2() + breathing_gas.fhe());
+    let inspired_inert_pa = stop_ambient * (breathing_gas.fn2() + breathing_gas.fhe());
     let p_inspired: P = inspired_inert_pa.into();
     let surface_targets: [P; NUM_TISSUES] = core::array::from_fn(|tissue_idx| {
         let shallow = m_values[0].max_saturation[tissue_idx];
@@ -145,7 +146,7 @@ pub fn compute_stop_time_lin_exp<const NUM_TISSUES: usize, P: const AbsPressure>
         } else {
             m_values[stop_idx - 1].max_saturation[tissue_idx]
         };
-        let p_amb: P = stop_depth_pa.into();
+        let p_amb: P = stop_ambient;
         let target_m = super::update::allowed_with_gf(p_amb, m_value, gf);
 
         // TODO: Plus or minus epsilon
@@ -246,7 +247,12 @@ mod tests {
             loadings_from_dive_profile(&TISSUES, &profile, &MVALUES, msw::new(0.0).to_pa());
 
         for _step in 0..3 {
-            let Some(stop_depth) = first_stop_depth_with_gf(&current_loading, &MVALUES, 1.0) else {
+            let Some(stop_depth) = first_stop_depth_with_gf(
+                &current_loading,
+                &MVALUES,
+                msw::new(0.0).to_pa(),
+                1.0,
+            ) else {
                 panic!("Expected at least five stops, got: {:?}", _step);
             };
             let stop_duration = compute_stop_time_lin_exp(
@@ -256,6 +262,7 @@ mod tests {
                 &MVALUES,
                 stop_depth,
                 1.0,
+                msw::new(0.0).to_pa(),
                 msw::new(3.0),
             );
             println!("Stop {:?}: {:?}", stop_depth, stop_duration);

@@ -10,7 +10,7 @@ use crate::{
     depth_utils::get_depth_idx,
     gas::{Gas, GasMix, HE_IDX, N2_IDX, TissuesLoading},
     mptt_buehlmann::{BuehlmannTissue, TISSUES},
-    pressure_unit::{AbsPressure, Pa, Pressure, msw},
+    pressure_unit::{AbsPressure, Pa, Pressure, ambient_pressure_at_depth, msw},
     time_utils::max,
     update_common::exp_pressure,
 };
@@ -80,6 +80,7 @@ pub fn compute_stop_time_exp<P: const AbsPressure>(
     m_values: &MValues<P>,
     stop_depth: msw,
     gf: f32,
+    surface_pressure: P,
     last_deco_stop: msw,
 ) -> Duration {
     let stop_depth_idx = get_depth_idx(stop_depth);
@@ -87,7 +88,8 @@ pub fn compute_stop_time_exp<P: const AbsPressure>(
 
     let mut t_stop_mins: f32 = 0.0;
     // Use total inert pressure (N2 + He) per tissue and total inspired inert.
-    let inspired_inert = stop_depth.to_pa() * (breathing_gas.fn2() + breathing_gas.fhe());
+    let stop_ambient = ambient_pressure_at_depth(surface_pressure, stop_depth);
+    let inspired_inert = stop_ambient * (breathing_gas.fn2() + breathing_gas.fhe());
     for tissue_idx in 0..TISSUES.len() {
         let p_n2 = loading.n2[tissue_idx].to_pa();
         let p_he = loading.he[tissue_idx].to_pa();
@@ -99,16 +101,16 @@ pub fn compute_stop_time_exp<P: const AbsPressure>(
                 tissue_idx,
                 p_n2,
                 p_he,
-                msw::new(0.0).to_pa(),
+                surface_pressure,
             )
         } else if p_tissue.to_f32() > 0.0 {
-            crate::update_common::mixed_buehlmann_mvalue(tissue_idx, p_n2, p_he, stop_depth.to_pa())
+            crate::update_common::mixed_buehlmann_mvalue(tissue_idx, p_n2, p_he, stop_ambient)
         } else {
             m_values[stop_depth_idx].max_saturation[tissue_idx].to_pa()
         };
 
         // Apply gradient factor to derive target stopping M-value
-        let p_amb = stop_depth.to_pa();
+        let p_amb = stop_ambient;
         let target_m = super::update::allowed_with_gf(p_amb, m_value, gf);
 
         if target_m.to_f32() - p_tissue.to_f32() >= 0.0 {

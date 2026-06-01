@@ -13,6 +13,7 @@ use crate::mptt_buehlmann::{self, BuehlmannTissue as Tissue};
 #[cfg(feature = "lin_exp")]
 use crate::mptt_thalmann::{self, NUM_STOP_DEPTHS_THALMANN, NUM_TISSUES_THALMANN};
 use crate::pressure_unit::{AbsPressure, Pa, Pressure, msw};
+use crate::pressure_unit::ambient_pressure_at_depth;
 use crate::setup::set_m;
 use crate::update::first_stop_depth_with_gf;
 #[cfg(not(feature = "lin_exp"))]
@@ -53,6 +54,7 @@ const STOP_SAFETY_MARGIN: Duration = Duration::from_secs(5);
 pub struct DecoSettings<P: const AbsPressure> {
     pub gas_density_settings: GasDensitySettings,
     pub max_deco_po2: P,
+    pub surface_pressure: P,
     pub ignore_icd: bool,
     pub gf_low: f32,
     pub gf_high: f32,
@@ -68,9 +70,10 @@ pub struct GradientFactors {
 fn compute_initial_first_stop<P: const AbsPressure>(
     loading: &TissuesLoading<NUM_TISSUES, P>,
     m_values: &MValues<P>,
+    surface_pressure: P,
     gf: GradientFactors,
 ) -> Option<msw> {
-    first_stop_depth_with_gf(loading, m_values, gf.low)
+    first_stop_depth_with_gf(loading, m_values, surface_pressure, gf.low)
 }
 
 fn interpolate_gf_for_depth(initial_first_stop: msw, stop_depth: msw, gf: GradientFactors) -> f32 {
@@ -97,6 +100,7 @@ fn add_stop_safety_margin(stop_duration: Duration) -> Duration {
 fn compute_next_stop_depth<P: const AbsPressure>(
     loading: &TissuesLoading<NUM_TISSUES, P>,
     m_values: &MValues<P>,
+    surface_pressure: P,
     initial_first_stop: msw,
     current_stop_depth: msw,
     gf: GradientFactors,
@@ -114,7 +118,7 @@ fn compute_next_stop_depth<P: const AbsPressure>(
     let next_depth = get_depth(current_depth_idx - 1).to_msw();
     let next_gf = interpolate_gf_for_depth(initial_first_stop, next_depth, gf);
 
-    match first_stop_depth_with_gf(loading, m_values, next_gf) {
+    match first_stop_depth_with_gf(loading, m_values, surface_pressure, next_gf) {
         Some(depth) if depth.to_msw().to_f32() < last_deco_stop.to_msw().to_f32() => {
             Some(last_deco_stop)
         }
@@ -175,6 +179,8 @@ fn calc_deco_schedule_intern<
     assert!(NUM_STOPS < NUM_STOP_DEPTHS);
 
     let mut loading = loading.clone();
+    let surface_pressure = deco_settings.surface_pressure;
+    let m_values = surface_pressure_adjusted_mvalues(m_values, surface_pressure);
     let mut stops: [Stop; NUM_STOPS] =
         [Stop::new(msw::new(0.0), Duration::from_millis(0), None); NUM_STOPS];
 
@@ -183,7 +189,7 @@ fn calc_deco_schedule_intern<
             Stop::new(get_depth(i).to_msw(), Duration::from_millis(0), None);
     }
     // Determine initial first stop using GFLow; if none, return empty schedule
-    let initial_first_stop = match compute_initial_first_stop(&loading, m_values, gf) {
+    let initial_first_stop = match compute_initial_first_stop(&loading, &m_values, surface_pressure, gf) {
         Some(d) => d,
         None => return Ok(StopSchedule::new(stops)),
     };
@@ -198,7 +204,7 @@ fn calc_deco_schedule_intern<
         }
         let mix = best_available_mix(
             deco_settings.max_deco_po2,
-            stop_depth.to_pa().into(),
+            ambient_pressure_at_depth(surface_pressure, stop_depth),
             gases,
             gases_enabled,
             &loading,
@@ -227,9 +233,10 @@ fn calc_deco_schedule_intern<
             &loading,
             tissues,
             breathing_gas,
-            m_values,
+            &m_values,
             stop_depth,
             gf_stop,
+            surface_pressure,
             deco_settings.last_deco_stop,
         );
         if stop_duration.is_zero() {
@@ -240,9 +247,9 @@ fn calc_deco_schedule_intern<
         update_model_state(
             &mut loading,
             tissues,
-            m_values,
+            &m_values,
             breathing_gas,
-            stop_depth.to_pa().into(),
+            ambient_pressure_at_depth(surface_pressure, stop_depth),
             &stop_duration,
         );
 
@@ -257,7 +264,8 @@ fn calc_deco_schedule_intern<
 
         next_stop = compute_next_stop_depth(
             &loading,
-            m_values,
+            &m_values,
+            surface_pressure,
             initial_first_stop,
             stop_depth,
             gf,
@@ -265,6 +273,39 @@ fn calc_deco_schedule_intern<
         );
     }
     Ok(StopSchedule::new(stops))
+}
+
+fn surface_pressure_adjusted_mvalues<P: const AbsPressure>(
+    m_values: &MValues<P>,
+    surface_pressure: P,
+) -> MValues<P> {
+    if m_values.len() < 2 {
+        return *m_values;
+    }
+
+    let sea_level_surface = msw::new(0.0).to_pa();
+    let surface_delta_pa = surface_pressure.to_pa() - sea_level_surface;
+    if surface_delta_pa == Pa::new(0.0) {
+        return *m_values;
+    }
+
+    let depth_delta_pa = m_values[1].depth.to_pa() - m_values[0].depth.to_pa();
+    if depth_delta_pa == Pa::new(0.0) {
+        return *m_values;
+    }
+
+    let mut result = *m_values;
+    for tissue_idx in 0..NUM_TISSUES {
+        let saturation_delta_per_pa =
+            (m_values[1].max_saturation[tissue_idx].to_pa() - m_values[0].max_saturation[tissue_idx].to_pa())
+                / depth_delta_pa;
+        let saturation_shift: P = (surface_delta_pa * saturation_delta_per_pa).into();
+        for row in result.iter_mut() {
+            row.max_saturation[tissue_idx] = row.max_saturation[tissue_idx] + saturation_shift;
+        }
+    }
+
+    result
 }
 
 const fn stop_idx_in_stops(num_stops: usize, i: usize) -> usize {
