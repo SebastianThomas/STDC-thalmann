@@ -6,7 +6,7 @@ pub use crate::mptt_buehlmann::{
 #[cfg(feature = "lin_exp")]
 pub use crate::mptt_thalmann::{
     NUM_STOP_DEPTHS_THALMANN as NUM_STOP_DEPTHS, NUM_TISSUES_THALMANN as NUM_TISSUES,
-    XVAL_HE9_040_F32 as MVALUES_TISSUES,
+    XVAL_HE9_040_F32_VARIABLE as MVALUES_TISSUES,
 };
 use crate::{
     mptt::{MValues, TissueRow},

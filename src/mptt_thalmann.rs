@@ -3,8 +3,53 @@ use crate::{
     pressure_unit::{Pa, Pressure, fsw, msw},
 };
 
+/// Generates a linear MPTT table with `N` stop depths at `depth_step_msw` intervals.
+///
+/// For compartment `i`, the max saturation at stop index `k` (1-indexed) is:
+///     M_i = m0_fsw[i] + k * increment_fsw[i]   (in fsw, stored as Pa)
+///
+/// Stop depths are placed at k * depth_step_msw for k = 1..=N.
+/// The linear formula follows Thalmann (2004) eq. M_i = β0_i + β1_i × D.
+pub const fn generate_linear_mptt<const N_TISSUES: usize, const N: usize>(
+    m0_fsw: [f32; N_TISSUES],
+    increment_fsw: [f32; N_TISSUES],
+    depth_step_msw: f32,
+) -> MValues<Pa, N_TISSUES, N> {
+    let mut table = [TissueRow::<N_TISSUES, Pa>::empty_pa(); N];
+    let mut k = 0usize;
+    while k < N {
+        let stop = (k + 1) as f32;
+        let depth = msw(stop * depth_step_msw);
+        let mut sat = [Pa::new(0.0); N_TISSUES];
+        let mut t = 0usize;
+        while t < N_TISSUES {
+            sat[t] = fsw(m0_fsw[t] + stop * increment_fsw[t]).to_pa();
+            t += 1;
+        }
+        table[k] = TissueRow { depth, max_saturation: sat };
+        k += 1;
+    }
+    table
+}
+
+// XVal-He-9_040 parameters (MSW variant, 5 compartments).
+// M0: max saturation extrapolated to D = 0, in fsw.
+// INCREMENT: change per 3-msw depth step, in fsw.
+// Derived from the published table: β1 = [1, 1, 1, 2, 1] relative to
+// the 9.843 fsw/step base (≈ 10 fsw / step for the 3-msw stop spacing).
+const XVAL_HE9_040_M0_FSW: [f32; NUM_TISSUES_THALMANN] =
+    [75.157, 54.157, 73.157, 22.046, 26.579];
+const XVAL_HE9_040_INCREMENT_FSW: [f32; NUM_TISSUES_THALMANN] =
+    [9.843, 9.843, 9.843, 19.685, 11.695];
+
+/// Generates an XVal-He-9_040 MPTT table with `N` stop depths at 3 msw intervals.
+pub const fn xval_he9_040<const N: usize>() -> MValues<Pa, NUM_TISSUES_THALMANN, N> {
+    generate_linear_mptt(XVAL_HE9_040_M0_FSW, XVAL_HE9_040_INCREMENT_FSW, 3.0)
+}
+
 pub const NUM_TISSUES_THALMANN: usize = 5;
-pub const NUM_STOP_DEPTHS_THALMANN: usize = 32;
+pub const NUM_STOP_DEPTHS_THALMANN: usize = 64;
+pub const NUM_STOP_DEPTHS_THALMANN_FIXED: usize = 32;
 
 pub const TISSUES: [Tissue; NUM_TISSUES_THALMANN] = [
     Tissue {
@@ -29,7 +74,10 @@ pub const TISSUES: [Tissue; NUM_TISSUES_THALMANN] = [
     },
 ];
 
-pub const XVAL_HE9_040_F32: MValues<Pa, { NUM_TISSUES_THALMANN }, { NUM_STOP_DEPTHS_THALMANN }> = [
+pub const XVAL_HE9_040_F32_VARIABLE: MValues<Pa, {NUM_TISSUES_THALMANN}, {NUM_STOP_DEPTHS_THALMANN}> = xval_he9_040();
+
+#[allow(dead_code)]
+pub const XVAL_HE9_040_F32: MValues<Pa, { NUM_TISSUES_THALMANN }, { NUM_STOP_DEPTHS_THALMANN_FIXED }> = [
     // XVAL-HE-9_040 (MSW)
     // Half-times (mins)
     //      10 20 20 120 200
@@ -356,3 +404,89 @@ pub const XVAL_HE9_040_F32: MValues<Pa, { NUM_TISSUES_THALMANN }, { NUM_STOP_DEP
         ],
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    extern crate std;
+
+    /// Beyond the 32-row reference table (> 96 msw), verifies:
+    ///   1. MPTT values keep increasing with depth (monotonicity).
+    ///   2. Per-step increment matches the known linear rate to within 0.001 fsw
+    ///      (the formula is exact; any residual is pure f32 accumulation).
+    #[test]
+    fn xval_he9_040_extrapolation_beyond_reference_is_linear() {
+        const N_EXTENDED: usize = NUM_STOP_DEPTHS_THALMANN;
+
+        let extended = xval_he9_040::<N_EXTENDED>();
+
+        let pa_per_fsw = fsw::new(1.0).to_pa().to_f32() - fsw::new(0.0).to_pa().to_f32();
+        let increment_tolerance_fsw = 0.001_f32;
+
+        let mut t = 0usize;
+        while t < NUM_TISSUES_THALMANN {
+            // Start at the first row beyond the reference (index 32 = 99 msw)
+            let mut k = NUM_STOP_DEPTHS_THALMANN_FIXED;
+            while k < N_EXTENDED {
+                let prev_pa = extended[k - 1].max_saturation[t].to_f32();
+                let curr_pa = extended[k].max_saturation[t].to_f32();
+
+                assert!(
+                    curr_pa > prev_pa,
+                    "Tissue {t}, stop {k} ({} msw): MPTT not increasing",
+                    (k + 1) * 3
+                );
+
+                let actual_inc_fsw = (curr_pa - prev_pa) / pa_per_fsw;
+                let expected_inc_fsw = XVAL_HE9_040_INCREMENT_FSW[t];
+                let err = f32::abs(actual_inc_fsw - expected_inc_fsw);
+                assert!(
+                    err < increment_tolerance_fsw,
+                    "Tissue {t}, stop {k} ({} msw): increment {actual_inc_fsw:.4} fsw, \
+                     expected {expected_inc_fsw:.4} fsw, err {err:.6}",
+                    (k + 1) * 3
+                );
+
+                k += 1;
+            }
+            t += 1;
+        }
+    }
+
+    #[test]
+    fn xval_he9_040_generation_matches_table() {
+        let generated = xval_he9_040::<NUM_STOP_DEPTHS_THALMANN_FIXED>();
+        // 1 fsw as a Pa magnitude (fsw(1).to_pa() - fsw(0).to_pa(), no atmospheric offset)
+        let pa_per_fsw = fsw::new(1.0).to_pa().to_f32() - fsw::new(0.0).to_pa().to_f32();
+        // Max expected deviation from parameter rounding is ~0.015 fsw; allow 0.05 fsw.
+        let threshold_fsw = 0.02_f32;
+
+        let mut t = 0usize;
+        while t < NUM_TISSUES_THALMANN {
+            let mut min_diff = f32::MAX;
+            let mut max_diff = 0.0_f32;
+            let mut sum_diff = 0.0_f32;
+
+            let mut k = 0usize;
+            while k < NUM_STOP_DEPTHS_THALMANN_FIXED {
+                let gene = generated[k].max_saturation[t].to_f32();
+                let tbl = XVAL_HE9_040_F32[k].max_saturation[t].to_f32();
+                let diff_fsw = f32::abs(gene - tbl) / pa_per_fsw;
+                if diff_fsw < min_diff { min_diff = diff_fsw; }
+                if diff_fsw > max_diff { max_diff = diff_fsw; }
+                sum_diff += diff_fsw;
+                k += 1;
+            }
+
+            let avg_diff = sum_diff / NUM_STOP_DEPTHS_THALMANN_FIXED as f32;
+            std::println!(
+                "Tissue {t} deviation (fsw): min={min_diff:.6}, max={max_diff:.6}, avg={avg_diff:.6}"
+            );
+            assert!(
+                max_diff < threshold_fsw,
+                "Tissue {t}: max deviation {max_diff:.6} fsw exceeds {threshold_fsw} fsw"
+            );
+            t += 1;
+        }
+    }
+}

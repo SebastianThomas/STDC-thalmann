@@ -4,7 +4,7 @@ use crate::{
     deco_algorithm::{MValues, update_model_state},
     dive::{DiveMeasurement, DiveProfile},
     gas::{AIR, TissuesLoading},
-    pressure_unit::{AbsPressure, Pressure, ambient_pressure_at_depth, msw},
+    pressure_unit::{AbsPressure, ambient_pressure_at_depth, msw},
     setup::NUM_TISSUES,
 };
 
